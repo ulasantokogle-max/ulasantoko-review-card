@@ -90,9 +90,3 @@ export function verifyActivationPin(
     return false;
   }
 }
-export function verifyActivationPin(
-  pin: string,
-  storedHash: string
-): boolean {
-  try {
-    const normalizedPin = String(pin).trim();
