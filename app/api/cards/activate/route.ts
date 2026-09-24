@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { verifyActivationPin } from "@/lib/pins";
+import { verifyActivationPin } from "@/lib/pin";
 
 export const dynamic = "force-dynamic";
 
