@@ -23,9 +23,20 @@ export default function ActivationForm(){
     <label className="block"><span className="text-sm font-semibold">Nama Bisnis</span>
       <input required value={businessName} onChange={e=>setBusinessName(e.target.value)} placeholder="Nama toko / bisnis" className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"/>
     </label>
-    <label className="block"><span className="text-sm font-semibold">Link Google Review</span>
-      <input required type="url" value={reviewUrl} onChange={e=>setReviewUrl(e.target.value)} placeholder="https://g.page/r/..." className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"/>
-    </label>
+<label className="block">
+  <span className="text-sm font-semibold">Link Google Review</span>
+  <input
+    required
+    type="url"
+    value={reviewUrl}
+    onChange={e => setReviewUrl(e.target.value)}
+    placeholder="https://search.google.com/local/writereview?placeid=..."
+    className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"
+  />
+  <p className="mt-2 text-xs text-gray-500">
+    Masukkan link langsung untuk pelanggan menulis ulasan di Google.
+  </p>
+</label>
     {message && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{message}</p>}
     <button disabled={loading} className="w-full rounded-2xl bg-black px-5 py-4 font-semibold text-white disabled:opacity-50">{loading?"Memproses...":"Aktifkan Kartu"}</button>
   </form>;
