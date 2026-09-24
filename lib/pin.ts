@@ -90,12 +90,6 @@ export function verifyActivationPin(
     return false;
   }
 }
-/**
- * Verify PIN terhadap hash yang tersimpan di database.
- *
- * Format hash:
- * salt:derivedKey
- */
 export function verifyActivationPin(
   pin: string,
   storedHash: string
