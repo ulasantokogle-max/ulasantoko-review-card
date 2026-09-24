@@ -90,3 +90,44 @@ export function verifyActivationPin(
     return false;
   }
 }
+/**
+ * Verify PIN terhadap hash yang tersimpan di database.
+ *
+ * Format hash:
+ * salt:derivedKey
+ */
+export function verifyActivationPin(
+  pin: string,
+  storedHash: string
+): boolean {
+  try {
+    const normalizedPin = String(pin).trim();
+
+    if (!/^\d{6}$/.test(normalizedPin)) {
+      return false;
+    }
+
+    const [saltHex, keyHex] = storedHash.split(":");
+
+    if (!saltHex || !keyHex) {
+      return false;
+    }
+
+    const salt = Buffer.from(saltHex, "hex");
+    const storedKey = Buffer.from(keyHex, "hex");
+
+    const derivedKey = scryptSync(
+      normalizedPin,
+      salt,
+      KEY_LENGTH
+    );
+
+    if (derivedKey.length !== storedKey.length) {
+      return false;
+    }
+
+    return timingSafeEqual(derivedKey, storedKey);
+  } catch {
+    return false;
+  }
+}
