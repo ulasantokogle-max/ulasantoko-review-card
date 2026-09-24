@@ -23,14 +23,28 @@ export default function ActivationForm() {
     const normalizedCardCode = cardCode.trim().toUpperCase();
     const normalizedPin = activationPin.trim();
 
+    // Validasi kode kartu
     if (!/^ULAS-\d{5}$/.test(normalizedCardCode)) {
       setMessage("Format kode kartu tidak valid.");
       setLoading(false);
       return;
     }
 
+    // Validasi PIN
     if (!/^\d{6}$/.test(normalizedPin)) {
       setMessage("PIN aktivasi harus terdiri dari 6 digit.");
+      setLoading(false);
+      return;
+    }
+
+    if (!businessName.trim()) {
+      setMessage("Nama bisnis wajib diisi.");
+      setLoading(false);
+      return;
+    }
+
+    if (!reviewUrl.trim()) {
+      setMessage("Link Google Review wajib diisi.");
       setLoading(false);
       return;
     }
@@ -52,7 +66,11 @@ export default function ActivationForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || data.error || "Aktivasi gagal.");
+        throw new Error(
+          data.message ||
+          data.error ||
+          "Aktivasi gagal."
+        );
       }
 
       router.push(
@@ -60,7 +78,8 @@ export default function ActivationForm() {
       );
     } catch (err: any) {
       setMessage(
-        err?.message || "Terjadi kesalahan saat aktivasi kartu."
+        err?.message ||
+        "Terjadi kesalahan saat aktivasi."
       );
     } finally {
       setLoading(false);
@@ -105,7 +124,9 @@ export default function ActivationForm() {
           value={activationPin}
           onChange={(e) =>
             setActivationPin(
-              e.target.value.replace(/\D/g, "").slice(0, 6)
+              e.target.value
+                .replace(/\D/g, "")
+                .slice(0, 6)
             )
           }
           placeholder="Masukkan 6 digit PIN"
@@ -128,7 +149,9 @@ export default function ActivationForm() {
         <input
           required
           value={businessName}
-          onChange={(e) => setBusinessName(e.target.value)}
+          onChange={(e) =>
+            setBusinessName(e.target.value)
+          }
           placeholder="Nama toko / bisnis"
           className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"
         />
@@ -144,17 +167,20 @@ export default function ActivationForm() {
           required
           type="url"
           value={reviewUrl}
-          onChange={(e) => setReviewUrl(e.target.value)}
+          onChange={(e) =>
+            setReviewUrl(e.target.value)
+          }
           placeholder="https://maps.app.goo.gl/..."
           className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"
         />
 
         <p className="mt-2 text-xs text-gray-500">
-          Masukkan link langsung untuk pelanggan menulis ulasan di Google.
+          Masukkan link langsung untuk pelanggan
+          menulis ulasan di Google.
         </p>
       </label>
 
-      {/* ERROR */}
+      {/* MESSAGE */}
       {message && (
         <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
           {message}
@@ -167,7 +193,9 @@ export default function ActivationForm() {
         disabled={loading}
         className="w-full rounded-2xl bg-black px-5 py-4 font-semibold text-white disabled:opacity-50"
       >
-        {loading ? "Memproses..." : "Aktifkan Kartu"}
+        {loading
+          ? "Memproses..."
+          : "Aktifkan Kartu"}
       </button>
     </form>
   );
