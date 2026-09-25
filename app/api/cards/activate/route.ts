@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
     const cardCode = normalizeCardCode(body.card_code ?? "");
     const activationPin = normalizePin(body.activation_pin ?? "");
     const businessName = normalizeBusinessName(body.business_name ?? "");
-    const googleReviewUrl = normalizeGoogleReviewUrl(
+    const googleReviewUrl = (body.google_review_url ?? "").trim();
       body.google_review_url ?? ""
     );
 
