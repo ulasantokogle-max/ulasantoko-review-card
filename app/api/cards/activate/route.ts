@@ -23,7 +23,7 @@ type ActivateRequest = {
   card_code?: string;
   activation_pin?: string;
   business_name?: string;
-  google_maps_url?: string;
+  google_review_url?: string;
 };
 
 function normalizeCardCode(value: string) {
