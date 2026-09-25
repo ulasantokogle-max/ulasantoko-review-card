@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
     const cardCode = normalizeCardCode(body.card_code ?? "");
     const activationPin = normalizePin(body.activation_pin ?? "");
     const businessName = normalizeBusinessName(body.business_name ?? "");
-    const googleReviewUrl = (body.google_review_url ?? "").trim();
+    const googleMapsUrl = (body.google_review_url ?? "").trim();
 
     /*
      * ================================
@@ -211,21 +211,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!googleReviewUrl) {
+    if (!googleMapsUrl) {
       return NextResponse.json(
         {
           success: false,
-          message: "Link Google Review wajib diisi.",
+          message: "Link Google Maps wajib diisi.",
         },
         { status: 400 }
       );
     }
 
-    if (!isValidGoogleReviewUrl(googleReviewUrl)) {
+    if (!isValidGoogleReviewUrl(googleMapsUrl)) {
       return NextResponse.json(
         {
           success: false,
-          message: "Link Google Review tidak valid.",
+          message: "Link Google Maps tidak valid.",
         },
         { status: 400 }
       );
@@ -325,6 +325,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    /*
+ * ================================
+ * GOOGLE PLACE ID
+ * ================================
+ */
+
+let placeId: string;
+
+try {
+  placeId = await extractPlaceIdFromGoogleMapsUrl(
+    googleMapsUrl,
+    businessName
+  );
+} catch (error) {
+  console.error("PLACE_ID_EXTRACTION_ERROR", error);
+
+  return NextResponse.json(
+    {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Place ID Google Maps tidak ditemukan.",
+    },
+    { status: 422 }
+  );
+}
+
+/*
+ * ================================
+ * GENERATE GOOGLE REVIEW URL
+ * ================================
+ */
+
+const googleReviewUrl =
+  `https://search.google.com/local/writereview?placeid=${placeId}`;
+    
     /*
      * ================================
      * ACTIVATE CARD
