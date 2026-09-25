@@ -131,7 +131,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "Kartu gagal dibuat.",
+          message: error.message,
+          error: error,
         },
         { status: 500 }
       );
