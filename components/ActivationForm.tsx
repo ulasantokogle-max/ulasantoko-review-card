@@ -176,7 +176,7 @@ export default function ActivationForm() {
 
         <p className="mt-2 text-xs text-gray-500">
           Masukkan link Google Maps bisnis Anda.
-          Sistem akan otomatis membuat link ulasan Google.
+          Sistem akan otomatis menemukan Place ID bisnis Anda.1
         </p>
       </label>
 
