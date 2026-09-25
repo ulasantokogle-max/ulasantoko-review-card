@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY!;
 
 const supabase = createClient(
   supabaseUrl,
@@ -22,7 +23,7 @@ type ActivateRequest = {
   card_code?: string;
   activation_pin?: string;
   business_name?: string;
-  google_review_url?: string;
+  google_maps_url?: string;
 };
 
 function normalizeCardCode(value: string) {
@@ -50,6 +51,7 @@ function isValidGoogleReviewUrl(value: string) {
       (
         url.hostname === "google.com" ||
         url.hostname.endsWith(".google.com") ||
+        url.hostname === "maps.google.com" ||
         url.hostname === "maps.app.goo.gl"
       )
     );
