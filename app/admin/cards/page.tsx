@@ -33,16 +33,18 @@ export default function CreateCardPage() {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Kartu gagal dibuat."
-        );
-      }
+if (!response.ok) {
+  throw new Error(
+    data.message || "Kartu gagal dibuat."
+  );
+}
 
-      setResult({
-        card_code: data.card_code,
-        activation_pin: data.activation_pin,
-      });
+setResult({
+  card_code: data.card_code,
+  activation_pin: data.activation_pin,
+});
+
+setCardCode("");
 
       setCardCode("");
     } catch (err) {
