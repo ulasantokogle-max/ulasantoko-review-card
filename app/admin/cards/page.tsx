@@ -40,8 +40,8 @@ export default function CreateCardPage() {
       }
 
       setResult({
-        card_code: data.card.card_code,
-        activation_pin: data.card.activation_pin,
+        card_code: data.card_code,
+        activation_pin: data.activation_pin,
       });
 
       setCardCode("");
