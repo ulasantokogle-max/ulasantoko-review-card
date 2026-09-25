@@ -44,7 +44,7 @@ export default function ActivationForm() {
     }
 
     if (!reviewUrl.trim()) {
-      setMessage("Link Google Review wajib diisi.");
+      setMessage("Link Google Maps wajib diisi.");
       setLoading(false);
       return;
     }
@@ -157,10 +157,10 @@ export default function ActivationForm() {
         />
       </label>
 
-      {/* GOOGLE REVIEW */}
+      {/* GOOGLE MAPS */}
       <label className="block">
         <span className="text-sm font-semibold">
-          Link Google Review
+          Link Google Maps
         </span>
 
         <input
@@ -175,8 +175,8 @@ export default function ActivationForm() {
         />
 
         <p className="mt-2 text-xs text-gray-500">
-          Masukkan link langsung untuk pelanggan
-          menulis ulasan di Google.
+          Masukkan link Google Maps bisnis Anda.
+          Sistem akan otomatis membuat link ulasan Google.
         </p>
       </label>
 
