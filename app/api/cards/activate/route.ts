@@ -138,10 +138,10 @@ async function extractPlaceIdFromGoogleMapsUrl(
 
   return place.id;
 }
-
+function isValidGoogleReviewUrl(value: string): boolean {
   try {
     const url = new URL(value);
-
+    
     return (
       url.protocol === "https:" &&
       (
