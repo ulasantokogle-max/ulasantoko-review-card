@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useParams } from "next/navigation";
+import { getCardAdapter } from "@/lib/card-adapter";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -56,35 +57,28 @@ export default function ComplaintPage() {
        * feedback_pages.is_active = true
        */
 
-      const { data: card, error: cardError } = await supabase
-        .from("feedback_pages")
-        .select("id, page_code, complaint_enabled, is_active")
-        .eq("page_code", cardCode)
-        .eq("is_active", true)
-        .maybeSingle();
+const card = await getCardAdapter(cardCode);
 
-      if (cardError) {
-        console.error("COMPLAINT_CARD_LOOKUP_ERROR:", cardError);
+if (!card) {
+  console.error(
+    "COMPLAINT_CARD_NOT_FOUND:",
+    cardCode
+  );
 
-        setErrorMessage(
-          "Gagal mengambil data card. Silakan coba lagi."
-        );
+  setErrorMessage(
+    "Data card gagal ditemukan."
+  );
 
-        return;
-      }
+  return;
+}
 
-      if (!card) {
-        console.error(
-          "COMPLAINT_CARD_NOT_FOUND:",
-          cardCode
-        );
+if (!card.complaint.enabled) {
+  setErrorMessage(
+    "Fitur keluhan untuk card ini sedang tidak tersedia."
+  );
 
-        setErrorMessage(
-          "Data card gagal ditemukan."
-        );
-
-        return;
-      }
+  return;
+}
 
       /*
        * ============================================================
