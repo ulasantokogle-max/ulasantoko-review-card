@@ -57,8 +57,8 @@ export async function getCardAdapter(
   const { data, error } = await supabase
     .from("feedback_pages")
     .select("*")
-    .eq("code", code)
-    .eq("active", true)
+    .eq("page_code", code)
+    .eq("is_active", true)
     .maybeSingle();
 
   if (error) {
