@@ -124,7 +124,7 @@ export default async function CardV2Page({ searchParams }: Props) {
             </p>
 
             <a
-              href="/complaints"
+              href={`/feedback/${card.code}/complaint`}
               className="mt-4 block rounded-xl bg-red-600 px-5 py-3 text-center font-semibold text-white"
             >
               Hubungi Customer Service
