@@ -82,20 +82,6 @@ if (!card.complaint.enabled) {
 
       /*
        * ============================================================
-       * 2. CEK APAKAH COMPLAINT AKTIF
-       * ============================================================
-       */
-
-      if (card.complaint_enabled === false) {
-        setErrorMessage(
-          "Fitur keluhan untuk card ini sedang tidak tersedia."
-        );
-
-        return;
-      }
-
-      /*
-       * ============================================================
        * 3. SIMPAN COMPLAINT
        * ============================================================
        */
