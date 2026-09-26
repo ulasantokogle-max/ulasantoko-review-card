@@ -70,29 +70,22 @@ export async function getCardAdapter(
     return null;
   }
 
-  return {
-    id: data.id,
-    code: data.code,
-    name: data.name ?? null,
-    active: data.active ?? true,
+return {
+  id: data.id,
+  code: data.page_code,
+  name: data.business_name,
+  active: data.is_active,
+  googleReviewUrl: data.google_review_url,
 
-    googleReviewUrl:
-      data.google_review_url ?? null,
+  feedback: {
+    enabled: data.feedback_enabled ?? true,
+    pageId: data.id,
+  },
 
-    feedback: {
-      enabled:
-        data.feedback_enabled ?? true,
+  complaint: {
+    enabled: data.complaint_enabled ?? true,
+  },
 
-      pageId:
-        data.id ?? null,
-    },
-
-    complaint: {
-      enabled:
-        data.complaint_enabled ?? true,
-    },
-
-    config:
-      data.config ?? {},
-  };
+  config: data.settings ?? {},
+};
 }
