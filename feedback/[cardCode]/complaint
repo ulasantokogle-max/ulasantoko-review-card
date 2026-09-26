@@ -1,0 +1,259 @@
+"use client";
+
+import { useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+import { useParams, useRouter } from "next/navigation";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+const supabase = createClient(
+  supabaseUrl,
+  supabaseAnonKey
+);
+
+export default function ComplaintPage() {
+  const params = useParams();
+  const router = useRouter();
+
+  const cardCode = String(params.cardCode || "");
+
+  const [customerName, setCustomerName] = useState("");
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  async function handleSubmit(
+    e: React.FormEvent<HTMLFormElement>
+  ) {
+    e.preventDefault();
+
+    setErrorMessage("");
+
+    if (!message.trim()) {
+      setErrorMessage("Silakan tuliskan keluhan Anda.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      /*
+       * Ambil feedback page berdasarkan card code.
+       *
+       * Kita TIDAK mengubah tabel card existing.
+       */
+      const { data: page, error: pageError } = await supabase
+        .from("feedback_pages")
+        .select(`
+          id,
+          page_code,
+          business_name,
+          is_active,
+          complaint_enabled
+        `)
+        .eq("page_code", cardCode)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (pageError) {
+        console.error("COMPLAINT_PAGE_ERROR:", pageError);
+        setErrorMessage("Terjadi kesalahan saat memuat data bisnis.");
+        return;
+      }
+
+      if (!page) {
+        setErrorMessage(
+          "Kartu tidak ditemukan atau sudah tidak aktif."
+        );
+        return;
+      }
+
+      if (page.complaint_enabled === false) {
+        setErrorMessage(
+          "Fitur keluhan tidak tersedia untuk kartu ini."
+        );
+        return;
+      }
+
+      /*
+       * Simpan complaint.
+       */
+      const { error: insertError } = await supabase
+        .from("feedback_complaints")
+        .insert({
+          feedback_page_id: page.id,
+          customer_name: isAnonymous
+            ? null
+            : customerName.trim() || null,
+          is_anonymous: isAnonymous,
+          message: message.trim(),
+          status: "pending",
+        });
+
+      if (insertError) {
+        console.error(
+          "COMPLAINT_INSERT_ERROR:",
+          insertError
+        );
+
+        setErrorMessage(
+          "Keluhan gagal dikirim. Silakan coba lagi."
+        );
+
+        return;
+      }
+
+      setSuccess(true);
+
+      setCustomerName("");
+      setMessage("");
+      setIsAnonymous(false);
+    } catch (error) {
+      console.error("COMPLAINT_ERROR:", error);
+
+      setErrorMessage(
+        "Terjadi kesalahan. Silakan coba lagi."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (success) {
+    return (
+      <main className="min-h-screen bg-gray-50 px-4 py-10">
+        <div className="mx-auto max-w-lg">
+          <div className="rounded-2xl bg-white p-6 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-2xl">
+              ✓
+            </div>
+
+            <h1 className="text-xl font-bold text-gray-900">
+              Keluhan Berhasil Dikirim
+            </h1>
+
+            <p className="mt-2 text-sm text-gray-600">
+              Terima kasih sudah menyampaikan pengalaman Anda.
+              Keluhan Anda telah kami terima dan akan segera
+              ditindaklanjuti.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="mt-6 w-full rounded-xl bg-black px-4 py-3 font-semibold text-white"
+            >
+              Kembali
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-gray-50 px-4 py-8">
+      <div className="mx-auto max-w-lg">
+
+        <div className="mb-4 rounded-2xl bg-white p-6 shadow-sm">
+          <h1 className="text-xl font-bold text-gray-900">
+            Sampaikan Keluhan Anda
+          </h1>
+
+          <p className="mt-2 text-sm text-gray-600">
+            Kami ingin mendengar pengalaman Anda agar dapat
+            memberikan pelayanan yang lebih baik.
+          </p>
+
+          <div className="mt-3 text-xs text-gray-400">
+            Card Code: {cardCode}
+          </div>
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-2xl bg-white p-6 shadow-sm"
+        >
+
+          <div className="mb-5">
+            <label className="mb-2 block text-sm font-semibold text-gray-800">
+              Nama
+            </label>
+
+            <input
+              type="text"
+              value={customerName}
+              onChange={(e) =>
+                setCustomerName(e.target.value)
+              }
+              disabled={isAnonymous}
+              placeholder={
+                isAnonymous
+                  ? "Nama disembunyikan"
+                  : "Masukkan nama Anda"
+              }
+              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black"
+            />
+          </div>
+
+          <div className="mb-5 flex items-center gap-3">
+            <input
+              id="anonymous"
+              type="checkbox"
+              checked={isAnonymous}
+              onChange={(e) =>
+                setIsAnonymous(e.target.checked)
+              }
+              className="h-4 w-4"
+            />
+
+            <label
+              htmlFor="anonymous"
+              className="text-sm text-gray-700"
+            >
+              Kirim secara anonim
+            </label>
+          </div>
+
+          <div className="mb-5">
+            <label className="mb-2 block text-sm font-semibold text-gray-800">
+              Keluhan
+            </label>
+
+            <textarea
+              value={message}
+              onChange={(e) =>
+                setMessage(e.target.value)
+              }
+              placeholder="Ceritakan pengalaman atau keluhan Anda..."
+              rows={6}
+              required
+              className="w-full resize-none rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black"
+            />
+          </div>
+
+          {errorMessage && (
+            <div className="mb-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+              {errorMessage}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-black px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading
+              ? "Mengirim..."
+              : "Kirim Keluhan"}
+          </button>
+
+        </form>
+      </div>
+    </main>
+  );
+}
