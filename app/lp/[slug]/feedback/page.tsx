@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, use, useState } from "react";
 
-export default function FeedbackPage({ params }: { params: { slug: string } }) {
-  const slug = params.slug.toUpperCase();
+export default function FeedbackPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug: rawSlug } = use(params);
+  const slug = rawSlug.toUpperCase();
   const [rating, setRating] = useState(5);
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
