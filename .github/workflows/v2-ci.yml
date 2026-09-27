@@ -9,6 +9,15 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # CI-only placeholders. Never use these values in production.
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+      ADMIN_KEY: ci-placeholder-admin-key
+      GOOGLE_MAPS_API_KEY: ci-placeholder-google-maps-key
+      SHORTIO_API_KEY: ci-placeholder-shortio-key
+      SHORTIO_DOMAIN: ulasantoko.space
 
     steps:
       - name: Checkout
