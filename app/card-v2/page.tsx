@@ -35,8 +35,8 @@ export default async function CardV2Page({ searchParams }: Props) {
         {card.feedback.enabled && card.feedback.pageId && (
           <section className="mt-4 rounded-2xl bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold">Berikan Feedback</h2>
-            <p className="mt-2 text-sm text-gray-500">Sampaikan pengalaman Anda kepada kami.</p>
-            <a href={`/feedback/${encodeURIComponent(card.code)}`} className="mt-4 block rounded-xl border px-5 py-3 text-center font-semibold">Berikan Feedback</a>
+            <p className="mt-2 text-sm text-gray-500">Sampaikan pengalaman Anda melalui halaman feedback bisnis.</p>
+            <a href={`/lp/${encodeURIComponent(card.code)}`} className="mt-4 block rounded-xl border px-5 py-3 text-center font-semibold">Buka Halaman Feedback</a>
           </section>
         )}
 
