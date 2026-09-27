@@ -183,6 +183,67 @@ begin
 end;
 $$;
 
+create or replace function public.v2_activate_card(
+  p_card_code text,
+  p_pin text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_card public.v2_cards%rowtype;
+  v_business_name text;
+begin
+  select * into v_card
+  from public.v2_cards
+  where card_code = upper(trim(p_card_code))
+  for update;
+
+  if not found then
+    raise exception 'card_not_found';
+  end if;
+
+  if v_card.status = 'blocked' then
+    raise exception 'card_blocked';
+  end if;
+
+  if v_card.status = 'active' then
+    select business_name into v_business_name
+    from public.v2_businesses where id = v_card.business_id;
+
+    return jsonb_build_object(
+      'ok', true,
+      'already_active', true,
+      'card_code', v_card.card_code,
+      'business_name', v_business_name,
+      'public_path', '/lp/' || v_card.card_code
+    );
+  end if;
+
+  if v_card.activation_pin_hash is null
+     or crypt(trim(p_pin), v_card.activation_pin_hash) <> v_card.activation_pin_hash then
+    raise exception 'invalid_pin';
+  end if;
+
+  update public.v2_cards
+  set status = 'active', activated_at = now(), updated_at = now()
+  where id = v_card.id;
+
+  select business_name into v_business_name
+  from public.v2_businesses where id = v_card.business_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'already_active', false,
+    'card_code', v_card.card_code,
+    'business_name', v_business_name,
+    'public_path', '/lp/' || v_card.card_code
+  );
+end;
+$$;
+
 alter table public.v2_businesses enable row level security;
 alter table public.v2_cards enable row level security;
 alter table public.v2_landing_pages enable row level security;
@@ -235,6 +296,9 @@ with check (
 
 revoke execute on function public.v2_create_card(text,text,text,text,text,text,text,text,text) from public, anon, authenticated;
 grant execute on function public.v2_create_card(text,text,text,text,text,text,text,text,text) to service_role;
+
+revoke execute on function public.v2_activate_card(text,text) from public, anon, authenticated;
+grant execute on function public.v2_activate_card(text,text) to service_role;
 
 revoke execute on function public.v2_next_business_code() from public, anon, authenticated;
 revoke execute on function public.v2_next_lp_code() from public, anon, authenticated;
