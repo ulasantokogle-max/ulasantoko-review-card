@@ -1,337 +1,91 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
-
-type FeedbackPage = {
-  id: string;
-  slug: string;
-  business_name: string;
-  industry: string | null;
-  is_active: boolean;
-};
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey
-);
+import { FormEvent, useState } from "react";
 
 export default function ComplaintPage() {
-  const params = useParams();
-  const slug = params?.slug as string;
-
-  const [page, setPage] = useState<FeedbackPage | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const [customerName, setCustomerName] = useState("");
-  const [isAnonymous, setIsAnonymous] = useState(false);
+  const params = useParams<{ slug: string }>();
+  const slug = String(params?.slug ?? "").toUpperCase();
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [category, setCategory] = useState("Pelayanan");
   const [message, setMessage] = useState("");
+  const [anonymous, setAnonymous] = useState(false);
+  const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setStatus("");
 
-  useEffect(() => {
-    async function loadPage() {
-      if (!slug) return;
-
-      const { data, error } = await supabase
-        .from("feedback_pages")
-        .select(
-          `
-          id,
-          slug,
-          business_name,
-          industry,
-          is_active
-        `
-        )
-        .eq("slug", slug)
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (error) {
-        console.error("GET_FEEDBACK_PAGE_ERROR:", error);
-        setErrorMessage("Halaman tidak dapat dimuat.");
-        setLoading(false);
-        return;
+    try {
+      const response = await fetch("/api/v2/complaints", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ lp_slug: slug, customer_name: name, phone, category, message, is_anonymous: anonymous }),
+      });
+      const payload = await response.json();
+      setStatus(response.ok ? "✓ Keluhan sudah diterima. Tim kami akan menindaklanjutinya." : payload.message ?? "Keluhan gagal dikirim.");
+      if (response.ok) {
+        setMessage("");
+        setName("");
+        setPhone("");
       }
-
-      if (!data) {
-        setErrorMessage("Halaman tidak ditemukan atau sudah tidak aktif.");
-        setLoading(false);
-        return;
-      }
-
-      setPage(data);
+    } catch {
+      setStatus("Tidak dapat mengirim keluhan.");
+    } finally {
       setLoading(false);
     }
-
-    loadPage();
-  }, [slug]);
-
-  async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
-
-    setErrorMessage("");
-
-    if (!message.trim()) {
-      setErrorMessage("Silakan tuliskan keluhan Anda terlebih dahulu.");
-      return;
-    }
-
-    if (!isAnonymous && !customerName.trim()) {
-      setErrorMessage("Silakan isi nama atau pilih opsi anonim.");
-      return;
-    }
-
-    if (!page) {
-      setErrorMessage("Data bisnis tidak ditemukan.");
-      return;
-    }
-
-    setSubmitting(true);
-
-    const { error } = await supabase
-      .from("feedback_complaints")
-      .insert({
-        feedback_page_id: page.id,
-        customer_name: isAnonymous
-          ? null
-          : customerName.trim(),
-        is_anonymous: isAnonymous,
-        message: message.trim(),
-        status: "pending",
-      });
-
-    if (error) {
-      console.error("CREATE_COMPLAINT_ERROR:", error);
-      setErrorMessage(
-        "Keluhan belum berhasil dikirim. Silakan coba lagi."
-      );
-      setSubmitting(false);
-      return;
-    }
-
-    setSubmitting(false);
-    setSuccess(true);
-    setCustomerName("");
-    setMessage("");
-    setIsAnonymous(false);
-  }
-
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-[#f7f7f5] flex items-center justify-center px-5">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-black" />
-          <p className="text-sm text-gray-500">
-            Memuat halaman...
-          </p>
-        </div>
-      </main>
-    );
-  }
-
-  if (errorMessage && !page) {
-    return (
-      <main className="min-h-screen bg-[#f7f7f5] flex items-center justify-center px-5">
-        <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-2xl">
-            !
-          </div>
-
-          <h1 className="text-xl font-bold text-gray-900">
-            Halaman Tidak Ditemukan
-          </h1>
-
-          <p className="mt-2 text-sm leading-6 text-gray-500">
-            {errorMessage}
-          </p>
-
-          <button
-            type="button"
-            onClick={() => window.history.back()}
-            className="mt-6 w-full rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white"
-          >
-            Kembali
-          </button>
-        </div>
-      </main>
-    );
-  }
-
-  if (success) {
-    return (
-      <main className="min-h-screen bg-[#f7f7f5] px-5 py-10">
-        <div className="mx-auto w-full max-w-md">
-          <div className="overflow-hidden rounded-[28px] bg-white shadow-sm">
-            <div className="bg-[#0d332b] px-6 py-10 text-center text-white">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-3xl text-[#0d332b]">
-                ✓
-              </div>
-
-              <h1 className="mt-5 text-2xl font-bold">
-                Keluhan Berhasil Dikirim
-              </h1>
-
-              <p className="mt-2 text-sm leading-6 text-white/75">
-                Terima kasih telah menyampaikan pengalaman Anda.
-                Tim {page?.business_name} akan menindaklanjutinya.
-              </p>
-            </div>
-
-            <div className="p-6">
-              <button
-                type="button"
-                onClick={() => window.history.back()}
-                className="w-full rounded-xl bg-black px-5 py-3.5 text-sm font-semibold text-white"
-              >
-                Kembali
-              </button>
-            </div>
-          </div>
-
-          <p className="mt-6 text-center text-xs text-gray-400">
-            Powered by <span className="font-semibold">Ulasan Toko</span>
-          </p>
-        </div>
-      </main>
-    );
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f7f5] px-5 py-8">
-      <div className="mx-auto w-full max-w-md">
-        <div className="overflow-hidden rounded-[28px] bg-white shadow-sm">
-          {/* Header */}
-          <div className="bg-[#0d332b] px-6 py-8 text-center text-white">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-[#0d332b]">
-              {page?.business_name?.charAt(0)?.toUpperCase() || "U"}
-            </div>
+    <main style={{ minHeight: "100vh", padding: 18, background: "#f3f6f4", fontFamily: "Inter,system-ui,sans-serif" }}>
+      <section style={{ maxWidth: 520, margin: "0 auto", background: "white", borderRadius: 24, padding: 24, boxShadow: "0 16px 45px rgba(0,0,0,.07)" }}>
+        <a href={`/lp/${slug}`} style={{ color: "#6f7773", textDecoration: "none", fontSize: 13 }}>← Kembali</a>
+        <div style={{ marginTop: 22, fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: "#9a6728" }}>LAYANAN PELANGGAN V2</div>
+        <h1 style={{ margin: "8px 0 6px" }}>Sampaikan Keluhan</h1>
+        <p style={{ color: "#7d8581", lineHeight: 1.6, fontSize: 14 }}>Ceritakan kendala Anda. Kami akan menggunakan informasi ini untuk membantu penanganan.</p>
 
-            <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#d6a24a]">
-              Layanan Pelanggan
-            </p>
+        <form onSubmit={submit} style={{ display: "grid", gap: 14, marginTop: 22 }}>
+          <label>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 7 }}>Kategori</div>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
+              <option>Pelayanan</option>
+              <option>Produk</option>
+              <option>Pembayaran</option>
+              <option>Pengiriman</option>
+              <option>Lainnya</option>
+            </select>
+          </label>
 
-            <h1 className="mt-2 text-2xl font-bold">
-              {page?.business_name}
-            </h1>
-          </div>
+          <label>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 7 }}>Nama</div>
+            <input value={name} onChange={(e) => setName(e.target.value)} disabled={anonymous} placeholder="Nama Anda" style={inputStyle} />
+          </label>
 
-          {/* Content */}
-          <div className="p-6">
-            <h2 className="text-xl font-bold text-gray-900">
-              Sampaikan Keluhan
-            </h2>
+          <label>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 7 }}>Nomor WhatsApp</div>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={anonymous} placeholder="08xxxxxxxxxx" inputMode="tel" style={inputStyle} />
+          </label>
 
-            <p className="mt-2 text-sm leading-6 text-gray-500">
-              Kami menghargai masukan Anda. Sampaikan pengalaman
-              atau kendala yang Anda alami agar dapat kami tindaklanjuti.
-            </p>
+          <label>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 7 }}>Keluhan</div>
+            <textarea value={message} onChange={(e) => setMessage(e.target.value)} required rows={7} maxLength={5000} placeholder="Ceritakan kendala Anda..." style={{ ...inputStyle, paddingTop: 12, resize: "vertical" }} />
+          </label>
 
-            <form
-              onSubmit={handleSubmit}
-              className="mt-6 space-y-5"
-            >
-              {/* Name */}
-              <div>
-                <label
-                  htmlFor="customerName"
-                  className="mb-2 block text-sm font-semibold text-gray-800"
-                >
-                  Nama
-                </label>
+          <label style={{ display: "flex", gap: 9, alignItems: "center", fontSize: 13, color: "#69736e" }}>
+            <input type="checkbox" checked={anonymous} onChange={(e) => setAnonymous(e.target.checked)} /> Kirim secara anonim
+          </label>
 
-                <input
-                  id="customerName"
-                  type="text"
-                  value={customerName}
-                  onChange={(e) =>
-                    setCustomerName(e.target.value)
-                  }
-                  disabled={isAnonymous || submitting}
-                  placeholder="Masukkan nama Anda"
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-gray-400 disabled:bg-gray-100"
-                />
-              </div>
+          <button disabled={loading} type="submit" style={buttonStyle}>{loading ? "Mengirim..." : "Kirim Keluhan"}</button>
+        </form>
 
-              {/* Anonymous */}
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-                <input
-                  type="checkbox"
-                  checked={isAnonymous}
-                  onChange={(e) =>
-                    setIsAnonymous(e.target.checked)
-                  }
-                  disabled={submitting}
-                  className="mt-0.5 h-4 w-4"
-                />
-
-                <span>
-                  <span className="block text-sm font-semibold text-gray-800">
-                    Kirim secara anonim
-                  </span>
-
-                  <span className="mt-1 block text-xs leading-5 text-gray-500">
-                    Nama Anda tidak akan ditampilkan pada laporan keluhan.
-                  </span>
-                </span>
-              </label>
-
-              {/* Complaint */}
-              <div>
-                <label
-                  htmlFor="message"
-                  className="mb-2 block text-sm font-semibold text-gray-800"
-                >
-                  Keluhan / Masukan
-                </label>
-
-                <textarea
-                  id="message"
-                  value={message}
-                  onChange={(e) =>
-                    setMessage(e.target.value)
-                  }
-                  disabled={submitting}
-                  rows={6}
-                  placeholder="Ceritakan pengalaman atau kendala yang Anda alami..."
-                  className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm leading-6 outline-none transition focus:border-gray-400 disabled:bg-gray-100"
-                />
-              </div>
-
-              {/* Error */}
-              {errorMessage && (
-                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm leading-5 text-red-700">
-                  {errorMessage}
-                </div>
-              )}
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full rounded-xl bg-[#0d332b] px-5 py-3.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {submitting
-                  ? "Mengirim..."
-                  : "Kirim Keluhan"}
-              </button>
-            </form>
-          </div>
-        </div>
-
-        <p className="mt-6 text-center text-xs text-gray-400">
-          Powered by <span className="font-semibold">Ulasan Toko</span>
-        </p>
-      </div>
+        {status && <div style={{ marginTop: 16, padding: 13, borderRadius: 12, background: status.startsWith("✓") ? "#effbf3" : "#fff1f1", color: status.startsWith("✓") ? "#16753b" : "#a32626", fontSize: 13 }}>{status}</div>}
+      </section>
     </main>
   );
 }
+
+const inputStyle: React.CSSProperties = { width: "100%", minHeight: 44, border: "1px solid #d7dcda", borderRadius: 10, padding: "0 12px", fontSize: 14, boxSizing: "border-box", background: "white" };
+const buttonStyle: React.CSSProperties = { minHeight: 46, border: 0, borderRadius: 10, background: "#102b24", color: "white", fontWeight: 800, cursor: "pointer" };
