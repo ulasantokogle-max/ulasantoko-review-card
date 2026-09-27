@@ -5,18 +5,9 @@ export type CardAdapter = {
   code: string;
   name: string | null;
   active: boolean;
-
   googleReviewUrl: string | null;
-
-  feedback: {
-    enabled: boolean;
-    pageId: string | null;
-  };
-
-  complaint: {
-    enabled: boolean;
-  };
-
+  feedback: { enabled: boolean; pageId: string | null };
+  complaint: { enabled: boolean };
   config: Record<string, unknown>;
 };
 
@@ -27,65 +18,59 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Supabase environment variables are missing");
 }
 
-const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey
-);
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
  * Card Adapter V2
  *
- * IMPORTANT:
- * Adapter ini menjadi satu-satunya layer
- * yang digunakan feature V2 untuk mengambil
- * konfigurasi card.
- *
- * Sistem existing tidak diubah.
+ * Satu-satunya read layer yang dipakai feature V2.
+ * Existing `cards` tetap menjadi sumber identitas/status kartu.
+ * `feedback_pages` bersifat additive: bila tersedia, konfigurasi
+ * landing/complaint V2 ikut digunakan.
  */
-export async function getCardAdapter(
-  code: string
-): Promise<CardAdapter | null> {
-  if (!code) {
+export async function getCardAdapter(code: string): Promise<CardAdapter | null> {
+  const normalizedCode = code?.trim().toUpperCase();
+  if (!normalizedCode) return null;
+
+  const { data: card, error: cardError } = await supabase
+    .from("cards")
+    .select("id, card_code, business_name, google_review_url, status")
+    .eq("card_code", normalizedCode)
+    .maybeSingle();
+
+  if (cardError) {
+    console.error("CARD_ADAPTER_CARD_ERROR:", cardError);
     return null;
   }
+  if (!card) return null;
 
-  /*
-   * V2 mencoba mengambil data dari feedback_pages.
-   *
-   * Jangan mengubah tabel card existing.
-   */
-  const { data, error } = await supabase
+  // Optional V2 configuration. Missing feedback_pages must never
+  // break the existing card flow.
+  const { data: page, error: pageError } = await supabase
     .from("feedback_pages")
-    .select("*")
-    .eq("page_code", code)
+    .select("id, page_code, feedback_enabled, complaint_enabled, settings")
+    .eq("page_code", normalizedCode)
     .eq("is_active", true)
     .maybeSingle();
 
-  if (error) {
-    console.error("CARD_ADAPTER_ERROR:", error);
-    return null;
+  if (pageError) {
+    console.warn("CARD_ADAPTER_PAGE_WARNING:", pageError);
   }
 
-  if (!data) {
-    return null;
-  }
-
-return {
-  id: data.id,
-  code: data.page_code,
-  name: data.business_name,
-  active: data.is_active,
-  googleReviewUrl: data.google_review_url,
-
-  feedback: {
-    enabled: data.feedback_enabled ?? true,
-    pageId: data.id,
-  },
-
-  complaint: {
-    enabled: data.complaint_enabled ?? true,
-  },
-
-  config: data.settings ?? {},
-};
+  return {
+    id: card.id,
+    code: card.card_code,
+    name: card.business_name,
+    active: card.status === "active",
+    googleReviewUrl: card.google_review_url,
+    feedback: {
+      enabled: page?.feedback_enabled ?? true,
+      pageId: page?.id ?? null,
+    },
+    // Complaint storage currently depends on feedback_pages.
+    complaint: {
+      enabled: Boolean(page?.id) && (page?.complaint_enabled ?? true),
+    },
+    config: page?.settings ?? {},
+  };
 }
