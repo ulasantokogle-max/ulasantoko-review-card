@@ -38,7 +38,13 @@ function industryLabel(industry: string | null) {
   return labels[industry || ""] || "Bisnis";
 }
 
-export default function LP002({ page }: { page: LP002Page }) {
+export default function LP002({
+  page,
+  complaintHref,
+}: {
+  page: LP002Page;
+  complaintHref?: string | null;
+}) {
   const primary = page.primary_color || "#173A32";
   const secondary = page.secondary_color || "#D49A3A";
   const reviewTitle = page.review_title || "Bagaimana pengalaman Anda?";
@@ -101,18 +107,20 @@ export default function LP002({ page }: { page: LP002Page }) {
             </div>
           </article>
 
-          <article className="lp002-action lp002-complaint">
-            <div className="lp002-icon">✓</div>
-            <div className="lp002-copy">
-              <span className="lp002-label">CUSTOMER CARE</span>
-              <h3>{complaintTitle}</h3>
-              <p>{complaintDescription}</p>
-              <a href={`/lp/${page.slug}/complaint`} className="lp002-button lp002-complaint-button">
-                <span>Sampaikan Keluhan</span>
-                <span>→</span>
-              </a>
-            </div>
-          </article>
+          {complaintHref && (
+            <article className="lp002-action lp002-complaint">
+              <div className="lp002-icon">✓</div>
+              <div className="lp002-copy">
+                <span className="lp002-label">CUSTOMER CARE</span>
+                <h3>{complaintTitle}</h3>
+                <p>{complaintDescription}</p>
+                <a href={complaintHref} className="lp002-button lp002-complaint-button">
+                  <span>Sampaikan Keluhan</span>
+                  <span>→</span>
+                </a>
+              </div>
+            </article>
+          )}
         </section>
 
         <footer className="lp002-footer">
