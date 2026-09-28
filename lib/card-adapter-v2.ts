@@ -51,7 +51,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Supabase environment variables are missing");
+  throw new Error("V2_CONFIG_ERROR: Supabase environment variables are missing");
 }
 
 const cardApiUrl = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/card-api`;
@@ -67,6 +67,8 @@ function getString(value: unknown): string | null {
  * - Does not touch the legacy `lib/card-adapter.ts`.
  * - Reads card data through the HTTP card-api Edge Function.
  * - The Edge Function owns the call to public.v2_resolve_card().
+ * - Errors are thrown intentionally so `/card-v2` can show the exact V2 failure
+ *   while we diagnose the new HTTP/API path.
  */
 export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | null> {
   const normalizedCode = code?.trim().toUpperCase();
@@ -87,7 +89,9 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     });
   } catch (error) {
     console.error("CARD_ADAPTER_V2_HTTP_ERROR:", error);
-    return null;
+    throw new Error(
+      `V2_HTTP_FETCH_ERROR: ${error instanceof Error ? error.message : "Unknown fetch error"}`,
+    );
   }
 
   let payload: CardApiResponse;
@@ -96,19 +100,26 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     payload = (await response.json()) as CardApiResponse;
   } catch (error) {
     console.error("CARD_ADAPTER_V2_JSON_ERROR:", error);
-    return null;
+    throw new Error(
+      `V2_JSON_ERROR: ${error instanceof Error ? error.message : "Invalid JSON response"}`,
+    );
   }
 
   if (!response.ok || payload.ok === false) {
     console.error("CARD_ADAPTER_V2_API_ERROR:", payload.error ?? response.statusText);
-    return null;
+    throw new Error(
+      `V2_API_ERROR_${response.status}: ${payload.error ?? response.statusText ?? "Unknown API error"}`,
+    );
   }
 
   const card = payload.card;
   const business = payload.business;
   const landingPage = payload.landing_page;
 
-  if (!card?.id || !card.card_code) return null;
+  if (!card?.id || !card.card_code) {
+    console.error("CARD_ADAPTER_V2_INVALID_RESPONSE:", payload);
+    throw new Error("V2_INVALID_RESPONSE: card.id or card.card_code is missing");
+  }
 
   const settings = landingPage?.settings ?? {};
   const googleReviewUrl =
