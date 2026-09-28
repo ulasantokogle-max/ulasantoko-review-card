@@ -40,6 +40,14 @@ export function v2DestinationUrl(cardCode: string) {
   return origin + "/" + encodeURIComponent(cardCode);
 }
 
+export async function getV2ShortLink(cardCode: string) {
+  const code = String(cardCode).trim().toUpperCase();
+  if (!/^LP\d{5}$/.test(code)) throw new Error("Kode V2 tidak valid untuk Short.io.");
+
+  const { apiKey, domain } = config();
+  return readLink(domain, code, apiKey);
+}
+
 async function readLink(domain: string, path: string, apiKey: string) {
   const url =
     "https://api.short.io/links/expand?domain=" +
