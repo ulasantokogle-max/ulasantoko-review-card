@@ -149,6 +149,27 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     console.warn("CARD_ADAPTER_V2_PAGE_FETCH_WARNING:", error);
   }
 
+  // Compatibility fallback for public customer-facing data. This is read-only
+  // and does not change the legacy system. It also guarantees that a V2 card
+  // can still resolve its Google Review URL even when the V2 page settings
+  // record is incomplete or unavailable to the public role.
+  let legacyCard: { business_name?: string | null; google_review_url?: string | null } | null = null;
+  try {
+    const { data, error } = await supabase
+      .from("cards")
+      .select("business_name, google_review_url")
+      .eq("card_code", normalizedCode)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("CARD_ADAPTER_V2_LEGACY_CARD_WARNING:", error);
+    } else {
+      legacyCard = data as { business_name?: string | null; google_review_url?: string | null } | null;
+    }
+  } catch (error) {
+    console.warn("CARD_ADAPTER_V2_LEGACY_CARD_FETCH_WARNING:", error);
+  }
+
   const apiLandingSettings = isRecord(payload.landing_page?.settings) ? payload.landing_page.settings : {};
   const feedbackSettings = isRecord(feedbackPage?.settings) ? feedbackPage.settings : {};
 
@@ -171,6 +192,7 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     getString(settings.google_review_url) ??
     getString(settings.googleReviewUrl) ??
     getString(feedbackPage?.google_review_url) ??
+    getString(legacyCard?.google_review_url) ??
     getString(payload.business?.google_review_url) ??
     getString(card.google_review_url);
 
@@ -191,7 +213,11 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
   return {
     id: card.id,
     code: card.card_code,
-    name: configuredBusinessName ?? getString(payload.business?.business_name) ?? getString(payload.landing_page?.title),
+    name:
+      configuredBusinessName ??
+      getString(legacyCard?.business_name) ??
+      getString(payload.business?.business_name) ??
+      getString(payload.landing_page?.title),
     active,
     googleReviewUrl,
     feedback: {
@@ -207,7 +233,10 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     landingPage: {
       id: pageId,
       slug: getString(settings.slug) ?? getString(payload.landing_page?.slug) ?? normalizedCode,
-      title: configuredBusinessName ?? getString(payload.landing_page?.title),
+      title:
+        configuredBusinessName ??
+        getString(legacyCard?.business_name) ??
+        getString(payload.landing_page?.title),
       headline,
       description,
     },
