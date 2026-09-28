@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureV2ShortLink, getV2ShortLink, v2DestinationUrl } from "@/lib/shortio";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -93,14 +92,6 @@ export async function POST(request: NextRequest) {
         const businessActive = business?.status === "active";
         const landingActive = landing?.is_active !== false;
 
-        let shortLinkReady = false;
-        try {
-          const short = await getV2ShortLink(card.card_code);
-          shortLinkReady = Boolean(short && short.originalURL === v2DestinationUrl(card.card_code));
-        } catch {
-          shortLinkReady = false;
-        }
-
         return {
           id: card.id,
           card_code: card.card_code,
@@ -111,7 +102,6 @@ export async function POST(request: NextRequest) {
           business_name: businessName || "Belum diatur",
           configured: Boolean(businessName),
           review_ready: Boolean(business?.google_review_url),
-          short_link_ready: shortLinkReady,
           logo_url: business?.logo_url ?? null,
           created_at: card.created_at,
           updated_at: card.updated_at,
