@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { getV2PublicUrl } from "@/lib/v2-public-url";
 
 type Card = {
   id: string;
@@ -11,7 +12,6 @@ type Card = {
   configured: boolean;
   review_ready: boolean;
   logo_url: string | null;
-  short_link_ready: boolean;
   public_path: string;
   settings_path: string;
   tools_path: string;
@@ -24,8 +24,6 @@ type Created = {
   public_path: string;
   settings_path: string;
   tools_path: string;
-  short_url?: string | null;
-  short_link_error?: string | null;
 };
 
 export default function V2AdminCardsDashboard() {
@@ -108,32 +106,11 @@ export default function V2AdminCardsDashboard() {
     }
   }
 
-  async function syncShortLink(card: Card) {
-    setError("");
-    setNotice("");
-    try {
-      const r = await fetch("/api/v2/cards/sync-shortlink", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          card_code: card.card_code,
-          admin_key: adminKey,
-          title: "Ulasan Toko V2 " + card.card_code,
-        }),
-      });
-      const d = await r.json();
-      if (!r.ok || !d.ok) throw new Error(d.error || "Short link gagal dibuat.");
-      setNotice("Short link siap: " + d.short_url);
-      await loadCards();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Short link gagal dibuat.");
-    }
-  }
-
   async function copy(path: string) {
     try {
-      await navigator.clipboard.writeText(window.location.origin + path);
-      setNotice("Link kartu berhasil disalin.");
+      const fullUrl = /^https?:\/\//i.test(path) ? path : getV2PublicUrl(path.replace(/^\//, ""));
+      await navigator.clipboard.writeText(fullUrl);
+      setNotice("Link kartu berhasil disalin: " + fullUrl);
     } catch {
       setError("Copy otomatis tidak tersedia di browser ini.");
     }
@@ -283,18 +260,12 @@ export default function V2AdminCardsDashboard() {
                             <span className={card.review_ready ? "rounded-full bg-emerald-50 px-2 py-1 font-semibold text-emerald-700" : "rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-600"}>
                               {card.review_ready ? "Review siap" : "Review belum siap"}
                             </span>
-                            <span className={card.short_link_ready ? "rounded-full bg-violet-50 px-2 py-1 font-semibold text-violet-700" : "rounded-full bg-amber-50 px-2 py-1 font-semibold text-amber-700"}>
-                              {card.short_link_ready ? "Short link siap" : "Short link belum ada"}
-                            </span>
                           </div>
                         </div>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
                         <button onClick={() => copy(card.public_path)} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold">Copy</button>
-                        <button onClick={() => syncShortLink(card)} className={card.short_link_ready ? "rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold" : "rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-white"}>
-                          {card.short_link_ready ? "Sync Link" : "Buat Link"}
-                        </button>
                         <a href={card.public_path} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold">Landing</a>
                         <a href={card.settings_path} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold">Pengaturan</a>
                         <a href={card.tools_path} className="rounded-xl bg-[#142721] px-3 py-2 text-xs font-bold text-white">QR/NFC</a>
