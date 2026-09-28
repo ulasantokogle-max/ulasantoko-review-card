@@ -17,8 +17,8 @@ export default function V2CardTools({ cardCode }: Props) {
 
   const code = cardCode.trim().toUpperCase();
   const publicUrl = useMemo(() => {
-    if (typeof window === "undefined") return "/" + code;
-    return window.location.origin + "/" + encodeURIComponent(code);
+    const domain = "ulasantoko.space";
+    return "https://" + domain + "/" + encodeURIComponent(code);
   }, [code]);
 
   async function unlock() {
