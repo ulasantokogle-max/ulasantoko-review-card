@@ -11,6 +11,7 @@ type Card = {
   configured: boolean;
   review_ready: boolean;
   logo_url: string | null;
+  short_link_ready: boolean;
   public_path: string;
   settings_path: string;
   tools_path: string;
@@ -23,6 +24,8 @@ type Created = {
   public_path: string;
   settings_path: string;
   tools_path: string;
+  short_url?: string | null;
+  short_link_error?: string | null;
 };
 
 export default function V2AdminCardsDashboard() {
@@ -102,6 +105,28 @@ export default function V2AdminCardsDashboard() {
       await loadCards();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal mengubah status.");
+    }
+  }
+
+  async function syncShortLink(card: Card) {
+    setError("");
+    setNotice("");
+    try {
+      const r = await fetch("/api/v2/cards/sync-shortlink", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          card_code: card.card_code,
+          admin_key: adminKey,
+          title: "Ulasan Toko V2 " + card.card_code,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) throw new Error(d.error || "Short link gagal dibuat.");
+      setNotice("Short link siap: " + d.short_url);
+      await loadCards();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Short link gagal dibuat.");
     }
   }
 
@@ -251,12 +276,15 @@ export default function V2AdminCardsDashboard() {
                             </span>
                           </div>
                           <p className="mt-1 truncate text-sm font-semibold">{card.business_name}</p>
-                          <div className="mt-2 flex gap-2 text-[10px]">
+                          <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
                             <span className={card.configured ? "rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700" : "rounded-full bg-amber-50 px-2 py-1 font-semibold text-amber-700"}>
                               {card.configured ? "Sudah diatur" : "Belum diatur"}
                             </span>
                             <span className={card.review_ready ? "rounded-full bg-emerald-50 px-2 py-1 font-semibold text-emerald-700" : "rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-600"}>
                               {card.review_ready ? "Review siap" : "Review belum siap"}
+                            </span>
+                            <span className={card.short_link_ready ? "rounded-full bg-violet-50 px-2 py-1 font-semibold text-violet-700" : "rounded-full bg-amber-50 px-2 py-1 font-semibold text-amber-700"}>
+                              {card.short_link_ready ? "Short link siap" : "Short link belum ada"}
                             </span>
                           </div>
                         </div>
@@ -264,6 +292,9 @@ export default function V2AdminCardsDashboard() {
 
                       <div className="flex flex-wrap gap-2">
                         <button onClick={() => copy(card.public_path)} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold">Copy</button>
+                        <button onClick={() => syncShortLink(card)} className={card.short_link_ready ? "rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold" : "rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-white"}>
+                          {card.short_link_ready ? "Sync Link" : "Buat Link"}
+                        </button>
                         <a href={card.public_path} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold">Landing</a>
                         <a href={card.settings_path} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold">Pengaturan</a>
                         <a href={card.tools_path} className="rounded-xl bg-[#142721] px-3 py-2 text-xs font-bold text-white">QR/NFC</a>
