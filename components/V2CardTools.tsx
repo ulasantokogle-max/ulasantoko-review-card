@@ -139,7 +139,7 @@ export default function V2CardTools({ cardCode }: Props) {
             <h1 className="mt-1 text-2xl font-bold">QR & NFC Card</h1>
             <p className="mt-1 text-sm text-slate-500">{businessName} · {code}</p>
           </div>
-          <a href={"/" + code} className="rounded-xl border px-3 py-2 text-xs font-semibold">Lihat Landing</a>
+          <a href={publicUrl} target="_blank" rel="noreferrer" className="rounded-xl border px-3 py-2 text-xs font-semibold">Lihat Landing</a>
         </div>
 
         <div className="mt-7 grid gap-6 lg:grid-cols-[1fr_260px]">
