@@ -77,16 +77,21 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
   let response: Response;
 
   try {
-    response = await fetch(cardApiUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${supabaseAnonKey}`,
-        apikey: supabaseAnonKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ card_code: normalizedCode }),
-      cache: "no-store",
-    });
+    const headers = new Headers();
+
+    headers.set("Content-Type", "application/json");
+
+  if (supabaseAnonKey) {
+    headers.set("Authorization", `Bearer ${supabaseAnonKey}`);
+    headers.set("apikey", supabaseAnonKey);
+  }
+
+  response = await fetch(cardApiUrl, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ card_code: normalizedCode }),
+    cache: "no-store",
+  });
   } catch (error) {
     console.error("CARD_ADAPTER_V2_HTTP_ERROR:", error);
     throw new Error(
