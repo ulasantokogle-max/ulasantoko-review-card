@@ -15,6 +15,7 @@ type Card = {
   public_path: string;
   settings_path: string;
   tools_path: string;
+  public_url?: string;
   created_at: string;
 };
 
@@ -24,6 +25,7 @@ type Created = {
   public_path: string;
   settings_path: string;
   tools_path: string;
+  public_url: string;
 };
 
 export default function V2AdminCardsDashboard() {
@@ -207,7 +209,7 @@ export default function V2AdminCardsDashboard() {
                   Simpan PIN ini. PIN hanya ditampilkan saat kartu dibuat.
                 </p>
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                  <a href={created.public_path} className="rounded-xl bg-[#142721] px-2 py-3 text-center text-[11px] font-bold text-white">Landing</a>
+                  <a href={created.public_url} target="_blank" rel="noreferrer" className="rounded-xl bg-[#142721] px-2 py-3 text-center text-[11px] font-bold text-white">Landing</a>
                   <a href={created.settings_path} className="rounded-xl border border-slate-300 px-2 py-3 text-center text-[11px] font-bold">Setting</a>
                   <a href={created.tools_path} className="rounded-xl border border-slate-300 px-2 py-3 text-center text-[11px] font-bold">QR/NFC</a>
                 </div>
@@ -219,7 +221,7 @@ export default function V2AdminCardsDashboard() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-bold text-[#182522]">Daftar Kartu</h2>
-                <p className="mt-1 text-sm text-slate-500">{filtered.length} kartu ditampilkan.</p>
+                <p className="mt-1 text-sm text-slate-500">{filtered.length} kartu ditampilkan · URL customer: {getV2PublicOrigin()}</p>
               </div>
               <input
                 value={query}
@@ -266,7 +268,7 @@ export default function V2AdminCardsDashboard() {
 
                       <div className="flex flex-wrap gap-2">
                         <button onClick={() => copy(card.public_path)} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold">Copy</button>
-                        <a href={card.public_path} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold">Landing</a>
+                        <a href={card.public_url || getV2PublicUrl(card.card_code)} target="_blank" rel="noreferrer" className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold">Landing</a>
                         <a href={card.settings_path} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold">Pengaturan</a>
                         <a href={card.tools_path} className="rounded-xl bg-[#142721] px-3 py-2 text-xs font-bold text-white">QR/NFC</a>
                         <button onClick={() => toggle(card)} className={card.card_status === "active" ? "rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700" : "rounded-xl border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-700"}>
