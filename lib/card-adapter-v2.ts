@@ -24,6 +24,7 @@ type V2Business = {
   id: string;
   business_code: string;
   business_name: string;
+  google_maps_url: string | null;
   google_review_url: string | null;
   google_place_id: string | null;
   logo_url: string | null;
@@ -84,7 +85,7 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
 
   const { data: business, error: businessError } = await supabase
     .from("v2_businesses")
-    .select("id, business_code, business_name, google_review_url, google_place_id, logo_url, address, phone, status")
+    .select("id, business_code, business_name, google_maps_url, google_review_url, google_place_id, logo_url, address, phone, status")
     .eq("id", v2Card.business_id)
     .maybeSingle();
 
@@ -110,6 +111,7 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
   const settings: Record<string, unknown> = {
     ...(v2Landing?.settings ?? {}),
     business_name: v2Business.business_name,
+    google_maps_url: v2Business.google_maps_url,
     google_review_url: v2Business.google_review_url,
     google_place_id: v2Business.google_place_id,
     logo_url: v2Business.logo_url,
