@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       await Promise.all([
         supabase
           .from("v2_businesses")
-          .select("id, business_code, business_name, google_review_url, google_place_id, logo_url, address, phone, status")
+          .select("id, business_code, business_name, google_maps_url, google_review_url, google_place_id, logo_url, address, phone, status")
           .eq("id", card.business_id)
           .single(),
         supabase
@@ -176,6 +176,7 @@ export async function POST(request: NextRequest) {
       .from("v2_businesses")
       .update({
         business_name: businessName,
+        google_maps_url: mapsUrl || business.google_maps_url || null,
         google_review_url: googleReviewUrl,
         google_place_id: googlePlaceId,
         phone: clean(input.phone) || business.phone || null,
