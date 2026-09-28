@@ -7,13 +7,66 @@ export default async function CardV2Page({ searchParams }: Props) {
   const code = params.code?.trim().toUpperCase();
 
   if (!code) {
-    return <main className="min-h-screen flex items-center justify-center p-6"><div className="text-center"><h1 className="text-2xl font-bold">Card tidak ditemukan</h1><p className="mt-2 text-gray-500">Kode card belum diberikan.</p></div></main>;
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">Card tidak ditemukan</h1>
+          <p className="mt-2 text-gray-500">Kode card belum diberikan.</p>
+        </div>
+      </main>
+    );
   }
 
-  const card = await getCardAdapterV2(code);
+  let card = null;
+  let diagnosticError: string | null = null;
 
-  if (!card || !card.active) {
-    return <main className="min-h-screen flex items-center justify-center p-6"><div className="text-center"><h1 className="text-2xl font-bold">Card tidak tersedia</h1><p className="mt-2 text-gray-500">Card tidak ditemukan atau sedang tidak aktif.</p></div></main>;
+  try {
+    card = await getCardAdapterV2(code);
+  } catch (error) {
+    diagnosticError = error instanceof Error ? error.message : "Unknown V2 error";
+    console.error("CARD_V2_PAGE_ERROR:", diagnosticError);
+  }
+
+  if (diagnosticError) {
+    return (
+      <main className="min-h-screen bg-gray-50 p-6">
+        <div className="mx-auto max-w-xl">
+          <section className="rounded-2xl bg-white p-6 shadow-sm">
+            <h1 className="text-2xl font-bold">V2 API Diagnostic</h1>
+            <p className="mt-2 text-sm text-gray-500">Card Code: {code}</p>
+            <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4">
+              <p className="text-sm font-semibold text-red-700">Error</p>
+              <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-red-700">{diagnosticError}</pre>
+            </div>
+            <p className="mt-4 text-xs text-gray-500">
+              Diagnostic ini hanya berada di route V2. Sistem legacy tidak diubah.
+            </p>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  if (!card) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">Card tidak ditemukan</h1>
+          <p className="mt-2 text-gray-500">API V2 tidak mengembalikan data card.</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!card.active) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">Card tidak aktif</h1>
+          <p className="mt-2 text-gray-500">Card {card.code} ditemukan, tetapi statusnya bukan active.</p>
+        </div>
+      </main>
+    );
   }
 
   return (
