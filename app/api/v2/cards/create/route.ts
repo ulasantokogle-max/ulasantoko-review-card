@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateActivationPin, hashActivationPin } from "@/lib/pin";
+import { ensureV2ShortLink } from "@/lib/shortio";
 
 export const dynamic = "force-dynamic";
 
@@ -182,6 +183,17 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      let shortLink: string | null = null;
+      let shortLinkError: string | null = null;
+
+      try {
+        const short = await ensureV2ShortLink(card.card_code, "Ulasan Toko V2 " + card.card_code);
+        shortLink = short.shortURL;
+      } catch (error) {
+        shortLinkError = error instanceof Error ? error.message : "Short.io link gagal dibuat.";
+        console.error("V2_SHORTLINK_CREATE_WARNING", error);
+      }
+
       return NextResponse.json({
         ok: true,
         card_code: card.card_code,
@@ -190,6 +202,8 @@ export async function POST(request: NextRequest) {
         public_path: "/" + card.card_code,
         settings_path: "/settings/" + card.card_code,
         tools_path: "/card-tools/" + card.card_code,
+        short_url: shortLink,
+        short_link_error: shortLinkError,
       });
     }
 
