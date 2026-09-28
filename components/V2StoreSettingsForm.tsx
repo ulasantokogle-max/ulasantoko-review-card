@@ -177,7 +177,8 @@ export default function V2StoreSettingsForm({ cardCode }: Props) {
       <section className="mx-auto max-w-2xl rounded-3xl border border-black/5 bg-white p-5 shadow-[0_18px_55px_rgba(0,0,0,.08)] sm:p-8">
         <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-5">
           <div><p className="text-xs font-bold tracking-[.22em] text-[#9a6a35]">ULASAN TOKO V2</p><h1 className="mt-1 text-2xl font-bold">Pengaturan Toko</h1><p className="mt-1 text-sm text-slate-500">Kartu {code}</p></div>
-          <a href={"/" + code} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold">Lihat Landing</a>\n          <a href={"/card-tools/" + encodeURIComponent(code)} className="rounded-xl bg-[#142721] px-3 py-2 text-xs font-semibold text-white">QR & NFC</a>
+          <a href={"/" + code} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold">Lihat Landing</a>
+          <a href={"/card-tools/" + encodeURIComponent(code)} className="rounded-xl bg-[#142721] px-3 py-2 text-xs font-semibold text-white">QR & NFC</a>
         </div>
 
         <form onSubmit={saveSettings} className="mt-7 space-y-7">
