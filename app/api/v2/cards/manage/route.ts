@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureV2ShortLink, v2DestinationUrl } from "@/lib/shortio";
+import { ensureV2ShortLink, getV2ShortLink, v2DestinationUrl } from "@/lib/shortio";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -95,8 +95,8 @@ export async function POST(request: NextRequest) {
 
         let shortLinkReady = false;
         try {
-          const short = await ensureV2ShortLink(card.card_code, "Ulasan Toko V2 " + card.card_code);
-          shortLinkReady = short.originalURL === v2DestinationUrl(card.card_code);
+          const short = await getV2ShortLink(card.card_code);
+          shortLinkReady = Boolean(short && short.originalURL === v2DestinationUrl(card.card_code));
         } catch {
           shortLinkReady = false;
         }
