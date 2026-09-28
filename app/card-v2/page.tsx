@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import { getCardAdapterV2 } from "@/lib/card-adapter-v2";
+import V2CustomerLanding from "@/components/V2CustomerLanding";
 
 type Props = { searchParams: Promise<{ code?: string }> };
 
@@ -7,10 +7,10 @@ type Props = { searchParams: Promise<{ code?: string }> };
  * V2 customer entry point.
  *
  * IMPORTANT:
- * - This route is V2-only.
- * - Legacy `/card` and `/lp/[slug]` are not changed.
- * - QR/NFC requests using `/card-v2?code=...` are resolved by the V2
- *   adapter and then sent directly to the V2 customer landing page.
+ * - V2-only route.
+ * - Legacy `/card` and `/lp/[slug]` are untouched.
+ * - Resolve the card once and render the V2 customer UI directly.
+ *   This avoids a second API request after a redirect.
  */
 export default async function CardV2Page({ searchParams }: Props) {
   const params = await searchParams;
@@ -31,18 +31,10 @@ export default async function CardV2Page({ searchParams }: Props) {
       return <Fallback title="Card tidak aktif" description={`Card ${card.code} ditemukan, tetapi sedang tidak aktif.`} />;
     }
 
-    // The customer-facing V2 UI lives in /lp-v2/[slug].
-    // Keep the entry route separate so legacy routes remain untouched.
-    redirect(`/lp-v2/${encodeURIComponent(card.code)}`);
+    return <V2CustomerLanding card={card} />;
   } catch (error) {
     console.error("CARD_V2_ENTRY_ERROR:", error);
-
-    return (
-      <Fallback
-        title="Halaman tidak tersedia"
-        description="Terjadi kendala saat memuat card. Silakan coba kembali."
-      />
-    );
+    return <Fallback title="Halaman tidak tersedia" description="Terjadi kendala saat memuat card. Silakan coba kembali." />;
   }
 }
 
