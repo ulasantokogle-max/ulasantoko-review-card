@@ -1,4 +1,5 @@
 import type { CardAdapterV2 } from "@/lib/card-adapter-v2";
+import { getV2PublicUrl, getV2PublicOrigin } from "@/lib/v2-public-url";
 
 function getSetting(settings: Record<string, unknown>, ...keys: string[]) {
   for (const key of keys) {
@@ -152,7 +153,7 @@ export default function V2CustomerLanding({ card }: { card: CardAdapterV2 }) {
 
           <div className="mt-6 flex justify-center">
             <a
-              href={"/settings/" + encodeURIComponent(card.code)}
+              href={getV2PublicOrigin() + "/settings/" + encodeURIComponent(card.code)}
               className="text-[11px] font-semibold text-slate-400 underline-offset-4 hover:text-slate-600 hover:underline"
             >
               Pengaturan Toko
