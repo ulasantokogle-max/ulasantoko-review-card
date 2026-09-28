@@ -142,6 +142,15 @@ export default function V2CustomerLanding({ card }: { card: CardAdapterV2 }) {
               )}
             </section>
           )}
+
+          <div className="mt-6 flex justify-center">
+            <a
+              href={"/settings/" + encodeURIComponent(card.code)}
+              className="text-[11px] font-semibold text-slate-400 underline-offset-4 hover:text-slate-600 hover:underline"
+            >
+              Pengaturan Toko
+            </a>
+          </div>
         </div>
       </div>
     </main>
