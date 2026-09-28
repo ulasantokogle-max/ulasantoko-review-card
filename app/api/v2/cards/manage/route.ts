@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getV2PublicUrl } from "@/lib/v2-public-url";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -106,6 +107,7 @@ export async function POST(request: NextRequest) {
           created_at: card.created_at,
           updated_at: card.updated_at,
           public_path: publicPath(card.card_code),
+          public_url: getV2PublicUrl(card.card_code),
           settings_path: settingsPath(card.card_code),
           tools_path: toolsPath(card.card_code),
         };
