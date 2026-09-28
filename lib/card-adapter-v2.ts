@@ -104,9 +104,7 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     });
   } catch (error) {
     console.error("CARD_ADAPTER_V2_HTTP_ERROR:", error);
-    throw new Error(
-      `V2_HTTP_FETCH_ERROR: ${error instanceof Error ? error.message : "Unknown fetch error"}`,
-    );
+    throw new Error(`V2_HTTP_FETCH_ERROR: ${error instanceof Error ? error.message : "Unknown fetch error"}`);
   }
 
   let payload: CardApiResponse;
@@ -115,16 +113,12 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     payload = (await response.json()) as CardApiResponse;
   } catch (error) {
     console.error("CARD_ADAPTER_V2_JSON_ERROR:", error);
-    throw new Error(
-      `V2_JSON_ERROR: ${error instanceof Error ? error.message : "Invalid JSON response"}`,
-    );
+    throw new Error(`V2_JSON_ERROR: ${error instanceof Error ? error.message : "Invalid JSON response"}`);
   }
 
   if (!response.ok || payload.ok === false) {
     console.error("CARD_ADAPTER_V2_API_ERROR:", payload.error ?? response.statusText);
-    throw new Error(
-      `V2_API_ERROR_${response.status}: ${payload.error ?? response.statusText ?? "Unknown API error"}`,
-    );
+    throw new Error(`V2_API_ERROR_${response.status}: ${payload.error ?? response.statusText ?? "Unknown error"}`);
   }
 
   const card = payload.card;
@@ -134,17 +128,15 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     throw new Error("V2_INVALID_RESPONSE: card.id or card.card_code is missing");
   }
 
-  // IMPORTANT: only select columns already proven to exist in this project.
-  // The dashboard stores presentation fields inside feedback_pages.settings.
-  // Selecting speculative columns such as logo_url/business_name can make the
-  // whole query fail and silently fall back to the test landing data.
+  // Load the dashboard settings even when the feedback page itself is not
+  // marked active. Card activation is controlled by cards.status; the page's
+  // is_active flag should not make the customer's configured branding vanish.
   let feedbackPage: FeedbackPage | null = null;
   try {
     const { data, error } = await supabase
       .from("feedback_pages")
       .select("id, page_code, feedback_enabled, complaint_enabled, is_active, settings")
       .eq("page_code", normalizedCode)
-      .eq("is_active", true)
       .maybeSingle();
 
     if (error) {
@@ -156,12 +148,8 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     console.warn("CARD_ADAPTER_V2_PAGE_FETCH_WARNING:", error);
   }
 
-  const apiLandingSettings = isRecord(payload.landing_page?.settings)
-    ? payload.landing_page.settings
-    : {};
-  const feedbackSettings = isRecord(feedbackPage?.settings)
-    ? feedbackPage.settings
-    : {};
+  const apiLandingSettings = isRecord(payload.landing_page?.settings) ? payload.landing_page.settings : {};
+  const feedbackSettings = isRecord(feedbackPage?.settings) ? feedbackPage.settings : {};
 
   // Dashboard settings win over API defaults/test data.
   const settings: Record<string, unknown> = {
@@ -181,11 +169,9 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     getString(payload.business?.google_review_url) ??
     getString(card.google_review_url);
 
-  const active = card.status === "active" && feedbackPage?.is_active !== false;
+  const active = card.status === "active";
   const pageId = getString(feedbackPage?.id) ?? getString(payload.landing_page?.id);
 
-  // Never expose the API's test/default headline unless the dashboard
-  // explicitly configured one.
   const headline =
     getString(settings.headline) ??
     getString(settings.customer_headline) ??
@@ -200,34 +186,22 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
   return {
     id: card.id,
     code: card.card_code,
-    name:
-      configuredBusinessName ??
-      getString(payload.business?.business_name) ??
-      getString(payload.landing_page?.title),
+    name: configuredBusinessName ?? getString(payload.business?.business_name) ?? getString(payload.landing_page?.title),
     active,
     googleReviewUrl,
     feedback: {
-      enabled:
-        Boolean(pageId) &&
-        active &&
-        (feedbackPage?.feedback_enabled ?? true),
+      enabled: Boolean(pageId) && active && (feedbackPage?.feedback_enabled ?? true),
       pageId,
     },
     complaint: {
-      enabled:
-        Boolean(pageId) &&
-        active &&
-        (feedbackPage?.complaint_enabled ?? true),
+      enabled: Boolean(pageId) && active && (feedbackPage?.complaint_enabled ?? true),
     },
     config: settings,
     publicPath: getString(payload.public_path),
     targetPath: getString(payload.qr?.target_path),
     landingPage: {
       id: pageId,
-      slug:
-        getString(settings.slug) ??
-        getString(payload.landing_page?.slug) ??
-        normalizedCode,
+      slug: getString(settings.slug) ?? getString(payload.landing_page?.slug) ?? normalizedCode,
       title: configuredBusinessName ?? getString(payload.landing_page?.title),
       headline,
       description,
