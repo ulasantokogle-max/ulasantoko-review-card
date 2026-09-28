@@ -1,106 +1,58 @@
+import { redirect } from "next/navigation";
 import { getCardAdapterV2 } from "@/lib/card-adapter-v2";
 
 type Props = { searchParams: Promise<{ code?: string }> };
 
+/**
+ * V2 customer entry point.
+ *
+ * IMPORTANT:
+ * - This route is V2-only.
+ * - Legacy `/card` and `/lp/[slug]` are not changed.
+ * - QR/NFC requests using `/card-v2?code=...` are resolved by the V2
+ *   adapter and then sent directly to the V2 customer landing page.
+ */
 export default async function CardV2Page({ searchParams }: Props) {
   const params = await searchParams;
   const code = params.code?.trim().toUpperCase();
 
   if (!code) {
-    return (
-      <main className="min-h-screen flex items-center justify-center p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Card tidak ditemukan</h1>
-          <p className="mt-2 text-gray-500">Kode card belum diberikan.</p>
-        </div>
-      </main>
-    );
+    return <Fallback title="Card tidak ditemukan" description="Kode card belum diberikan." />;
   }
-
-  let card = null;
-  let diagnosticError: string | null = null;
 
   try {
-    card = await getCardAdapterV2(code);
+    const card = await getCardAdapterV2(code);
+
+    if (!card) {
+      return <Fallback title="Card tidak ditemukan" description="API V2 tidak mengembalikan data card." />;
+    }
+
+    if (!card.active) {
+      return <Fallback title="Card tidak aktif" description={`Card ${card.code} ditemukan, tetapi sedang tidak aktif.`} />;
+    }
+
+    // The customer-facing V2 UI lives in /lp-v2/[slug].
+    // Keep the entry route separate so legacy routes remain untouched.
+    redirect(`/lp-v2/${encodeURIComponent(card.code)}`);
   } catch (error) {
-    diagnosticError = error instanceof Error ? error.message : "Unknown V2 error";
-    console.error("CARD_V2_PAGE_ERROR:", diagnosticError);
-  }
+    console.error("CARD_V2_ENTRY_ERROR:", error);
 
-  if (diagnosticError) {
     return (
-      <main className="min-h-screen bg-gray-50 p-6">
-        <div className="mx-auto max-w-xl">
-          <section className="rounded-2xl bg-white p-6 shadow-sm">
-            <h1 className="text-2xl font-bold">V2 API Diagnostic</h1>
-            <p className="mt-2 text-sm text-gray-500">Card Code: {code}</p>
-            <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4">
-              <p className="text-sm font-semibold text-red-700">Error</p>
-              <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-red-700">{diagnosticError}</pre>
-            </div>
-            <p className="mt-4 text-xs text-gray-500">
-              Diagnostic ini hanya berada di route V2. Sistem legacy tidak diubah.
-            </p>
-          </section>
-        </div>
-      </main>
+      <Fallback
+        title="Halaman tidak tersedia"
+        description="Terjadi kendala saat memuat card. Silakan coba kembali."
+      />
     );
   }
+}
 
-  if (!card) {
-    return (
-      <main className="min-h-screen flex items-center justify-center p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Card tidak ditemukan</h1>
-          <p className="mt-2 text-gray-500">API V2 tidak mengembalikan data card.</p>
-        </div>
-      </main>
-    );
-  }
-
-  if (!card.active) {
-    return (
-      <main className="min-h-screen flex items-center justify-center p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Card tidak aktif</h1>
-          <p className="mt-2 text-gray-500">Card {card.code} ditemukan, tetapi statusnya bukan active.</p>
-        </div>
-      </main>
-    );
-  }
-
+function Fallback({ title, description }: { title: string; description: string }) {
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
-      <div className="mx-auto max-w-xl">
-        <section className="rounded-2xl bg-white p-6 shadow-sm">
-          <h1 className="text-2xl font-bold">{card.name ?? "Review Card"}</h1>
-          <p className="mt-2 text-sm text-gray-500">Card Code: {card.code}</p>
-        </section>
-
-        {card.googleReviewUrl && (
-          <section className="mt-4 rounded-2xl bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Bagikan Pengalaman Anda</h2>
-            <p className="mt-2 text-sm text-gray-500">Bantu bisnis kami berkembang dengan memberikan ulasan Anda.</p>
-            <a href={card.googleReviewUrl} target="_blank" rel="noopener noreferrer" className="mt-4 block rounded-xl bg-black px-5 py-3 text-center font-semibold text-white">Berikan Ulasan Google</a>
-          </section>
-        )}
-
-        {card.feedback.enabled && card.feedback.pageId && (
-          <section className="mt-4 rounded-2xl bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Berikan Feedback</h2>
-            <p className="mt-2 text-sm text-gray-500">Sampaikan pengalaman Anda melalui halaman feedback bisnis.</p>
-            <a href={`/lp-v2/${encodeURIComponent(card.code)}`} className="mt-4 block rounded-xl border px-5 py-3 text-center font-semibold">Buka Halaman Feedback</a>
-          </section>
-        )}
-
-        {card.complaint.enabled && (
-          <section className="mt-4 rounded-2xl bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Hubungi Layanan Pelanggan</h2>
-            <p className="mt-2 text-sm text-gray-500">Dapatkan bantuan cepat atau sampaikan kendala Anda.</p>
-            <a href={`/feedback/${encodeURIComponent(card.code)}/complaint`} className="mt-4 block rounded-xl bg-red-600 px-5 py-3 text-center font-semibold text-white">Hubungi Customer Service</a>
-          </section>
-        )}
-      </div>
+    <main className="flex min-h-screen items-center justify-center bg-[#f4f5f3] p-6">
+      <section className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-sm">
+        <h1 className="text-xl font-bold text-slate-900">{title}</h1>
+        <p className="mt-2 text-sm text-slate-500">{description}</p>
+      </section>
     </main>
   );
 }
