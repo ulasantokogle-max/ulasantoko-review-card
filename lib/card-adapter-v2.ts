@@ -55,6 +55,7 @@ type FeedbackPage = {
   complaint_enabled?: boolean | null;
   is_active?: boolean | null;
   settings?: Record<string, unknown> | null;
+  google_review_url?: string | null;
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -135,7 +136,7 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
   try {
     const { data, error } = await supabase
       .from("feedback_pages")
-      .select("id, page_code, feedback_enabled, complaint_enabled, is_active, settings")
+      .select("id, page_code, feedback_enabled, complaint_enabled, is_active, settings, google_review_url")
       .eq("page_code", normalizedCode)
       .maybeSingle();
 
@@ -163,9 +164,13 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     getString(settings.nama_toko) ??
     getString(settings.name);
 
+  // Keep V2 presentation compatible with the existing feedback_pages record:
+  // google_review_url is a real column there, while newer dashboard versions
+  // may also keep the value inside settings.
   const googleReviewUrl =
     getString(settings.google_review_url) ??
     getString(settings.googleReviewUrl) ??
+    getString(feedbackPage?.google_review_url) ??
     getString(payload.business?.google_review_url) ??
     getString(card.google_review_url);
 
