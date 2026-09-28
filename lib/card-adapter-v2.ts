@@ -65,8 +65,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("V2_CONFIG_ERROR: Supabase environment variables are missing");
 }
 
-const cardApiUrl = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/card-api`;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// The guard above guarantees these values exist; keep local constants so
+// TypeScript also knows they are strings inside the adapter request.
+const supabaseUrlValue = supabaseUrl;
+const supabaseAnonKeyValue = supabaseAnonKey;
+const cardApiUrl = `${supabaseUrlValue.replace(/\/$/, "")}/functions/v1/card-api`;
+const supabase = createClient(supabaseUrlValue, supabaseAnonKeyValue);
 
 function getString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -96,8 +100,8 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
   try {
     const headers = new Headers();
     headers.set("Content-Type", "application/json");
-    headers.set("Authorization", `Bearer ${supabaseAnonKey}`);
-    headers.set("apikey", supabaseAnonKey);
+    headers.set("Authorization", `Bearer ${supabaseAnonKeyValue}`);
+    headers.set("apikey", supabaseAnonKeyValue);
 
     response = await fetch(cardApiUrl, {
       method: "POST",
