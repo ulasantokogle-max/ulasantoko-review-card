@@ -59,8 +59,10 @@ export default function V2CustomerLanding({ card }: { card: CardAdapterV2 }) {
   const businessName = card.name ?? card.landingPage.title ?? "Toko Anda";
   const headline = card.landingPage.headline ?? "BAGAIMANA PENGALAMAN ANDA HARI INI?";
   const description = card.landingPage.description ?? "Kami selalu ingin memberikan yang terbaik untuk Anda.";
-  const complaintHref = `/lp/${encodeURIComponent(card.code)}/complaint`;
-  const customerServiceHref = whatsapp ? `https://wa.me/${whatsapp}` : complaintHref;
+  // V2 must never fall back to the legacy complaint route. When no WhatsApp
+  // number is configured yet, keep the CTA non-navigating rather than sending
+  // customers into a legacy/404 route.
+  const customerServiceHref = whatsapp ? `https://wa.me/${whatsapp}` : null;
 
   return (
     <main className="min-h-screen bg-[#f4f5f3] px-3 py-4 sm:px-5 sm:py-8">
@@ -126,11 +128,18 @@ export default function V2CustomerLanding({ card }: { card: CardAdapterV2 }) {
                   <p className="mt-1 text-[11px] leading-4 text-[#8b8f8c]">Dapatkan Bantuan Cepat atau Solusi Masalah.</p>
                 </div>
               </div>
-              <a href={customerServiceHref} target={whatsapp ? "_blank" : undefined} rel={whatsapp ? "noopener noreferrer" : undefined} className="mt-3 flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#142721] px-4 text-[12px] font-bold text-white shadow-sm transition hover:brightness-95">
-                <IconMessage />
-                <span>Hubungi Owner / Customer Service</span>
-                <IconArrow />
-              </a>
+              {customerServiceHref ? (
+                <a href={customerServiceHref} target="_blank" rel="noopener noreferrer" className="mt-3 flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#142721] px-4 text-[12px] font-bold text-white shadow-sm transition hover:brightness-95">
+                  <IconMessage />
+                  <span>Hubungi Owner / Customer Service</span>
+                  <IconArrow />
+                </a>
+              ) : (
+                <div className="mt-3 flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#dfe6e3] px-4 text-[12px] font-bold text-[#6f7c76]" aria-disabled="true">
+                  <IconMessage />
+                  <span>WhatsApp Owner belum tersedia</span>
+                </div>
+              )}
             </section>
           )}
         </div>
