@@ -53,9 +53,30 @@ export async function POST(request: NextRequest) {
     const path = code + "/" + type + "-" + Date.now() + "." + extension;
     const bytes = new Uint8Array(await file.arrayBuffer());
 
-    const { error: uploadError } = await supabase
-      .storage
-      .from("v2-assets")
+    const bucket = "v2-assets";
+    const storage = supabase.storage;
+
+    // Self-heal the V2 bucket if the Supabase migration has not created it yet.
+    const { data: buckets, error: bucketListError } = await storage.listBuckets();
+    if (bucketListError) {
+      console.error("V2_BUCKET_LIST_ERROR", bucketListError);
+      throw new Error("Tidak dapat memeriksa storage V2.");
+    }
+
+    if (!(buckets ?? []).some((item) => item.name === bucket)) {
+      const { error: bucketCreateError } = await storage.createBucket(bucket, {
+        public: true,
+        fileSizeLimit: "5MB",
+      });
+
+      if (bucketCreateError && !/already exists|duplicate/i.test(bucketCreateError.message)) {
+        console.error("V2_BUCKET_CREATE_ERROR", bucketCreateError);
+        throw new Error("Bucket v2-assets gagal dibuat.");
+      }
+    }
+
+    const { error: uploadError } = await storage
+      .from(bucket)
       .upload(path, bytes, {
         contentType: file.type,
         cacheControl: "31536000",
@@ -64,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error("V2_ASSET_UPLOAD_ERROR", uploadError);
-      throw new Error("Upload gagal. Pastikan bucket v2-assets sudah dibuat.");
+      throw new Error("Upload gambar V2 gagal: " + uploadError.message);
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
