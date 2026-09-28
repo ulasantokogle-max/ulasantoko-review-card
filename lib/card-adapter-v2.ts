@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { supabaseServer } from "@/lib/supabase";
 
 export type CardAdapterV2 = {
   id: string;
@@ -134,7 +135,10 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
   // is_active flag should not make the customer's configured branding vanish.
   let feedbackPage: FeedbackPage | null = null;
   try {
-    const { data, error } = await supabase
+    // Presentation settings are read server-side with the service-role client.
+    // The customer route remains public, but RLS on legacy tables must not
+    // prevent V2 from rendering the configured Google Review URL.
+    const { data, error } = await supabaseServer()
       .from("feedback_pages")
       .select("id, page_code, feedback_enabled, complaint_enabled, is_active, settings, google_review_url")
       .eq("page_code", normalizedCode)
@@ -155,7 +159,7 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
   // record is incomplete or unavailable to the public role.
   let legacyCard: { business_name?: string | null; google_review_url?: string | null } | null = null;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseServer()
       .from("cards")
       .select("business_name, google_review_url")
       .eq("card_code", normalizedCode)
