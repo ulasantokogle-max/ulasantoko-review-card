@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ensureV2ShortLink, v2DestinationUrl } from "@/lib/shortio";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -84,13 +85,21 @@ export async function POST(request: NextRequest) {
       const businessMap = new Map((businesses ?? []).map((item) => [item.id, item]));
       const landingMap = new Map((landings ?? []).map((item) => [item.card_id, item]));
 
-      const result = cardRows.map((card) => {
+      const result = await Promise.all(cardRows.map(async (card) => {
         const business = businessMap.get(card.business_id);
         const landing = landingMap.get(card.id);
         const businessName = clean(business?.business_name);
         const cardActive = card.status === "active";
         const businessActive = business?.status === "active";
         const landingActive = landing?.is_active !== false;
+
+        let shortLinkReady = false;
+        try {
+          const short = await ensureV2ShortLink(card.card_code, "Ulasan Toko V2 " + card.card_code);
+          shortLinkReady = short.originalURL === v2DestinationUrl(card.card_code);
+        } catch {
+          shortLinkReady = false;
+        }
 
         return {
           id: card.id,
@@ -102,6 +111,7 @@ export async function POST(request: NextRequest) {
           business_name: businessName || "Belum diatur",
           configured: Boolean(businessName),
           review_ready: Boolean(business?.google_review_url),
+          short_link_ready: shortLinkReady,
           logo_url: business?.logo_url ?? null,
           created_at: card.created_at,
           updated_at: card.updated_at,
@@ -109,7 +119,7 @@ export async function POST(request: NextRequest) {
           settings_path: settingsPath(card.card_code),
           tools_path: toolsPath(card.card_code),
         };
-      });
+      }));
 
       return NextResponse.json({ ok: true, cards: result });
     }
