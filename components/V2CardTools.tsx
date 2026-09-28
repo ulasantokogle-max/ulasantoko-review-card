@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
+import { getV2PublicUrl } from "@/lib/v2-public-url";
 
 type Props = { cardCode: string };
 
@@ -16,10 +17,7 @@ export default function V2CardTools({ cardCode }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const code = cardCode.trim().toUpperCase();
-  const publicUrl = useMemo(() => {
-    const domain = "ulasantoko.space";
-    return "https://" + domain + "/" + encodeURIComponent(code);
-  }, [code]);
+  const publicUrl = useMemo(() => getV2PublicUrl(code), [code]);
 
   async function unlock() {
     setLoading(true);
