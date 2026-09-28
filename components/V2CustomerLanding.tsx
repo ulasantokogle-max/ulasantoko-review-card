@@ -48,14 +48,21 @@ export default function V2CustomerLanding({ card }: { card: CardAdapterV2 }) {
     "customerServiceWhatsapp"
   ) ?? "";
   const whatsapp = normalizeWhatsApp(whatsappRaw);
-  const googleReviewUrl = card.googleReviewUrl ?? getSetting(
-    settings,
-    "google_review_url",
-    "googleReviewUrl",
-    "google_review",
-    "link_google_review",
-    "link_google_maps"
-  );
+  const placeId = getSetting(settings, "google_place_id", "googlePlaceId", "place_id");
+  const googleReviewUrl =
+    card.googleReviewUrl ??
+    getSetting(
+      settings,
+      "google_review_url",
+      "googleReviewUrl",
+      "google_review",
+      "link_google_review",
+      "link_google_maps"
+    ) ??
+    (placeId
+      ? "https://search.google.com/local/writereview?placeid=" +
+        encodeURIComponent(placeId)
+      : null);
   const businessName = card.name ?? card.landingPage.title ?? "Toko Anda";
   const headline = card.landingPage.headline ?? "BAGAIMANA PENGALAMAN ANDA HARI INI?";
   const description = card.landingPage.description ?? "Kami selalu ingin memberikan yang terbaik untuk Anda.";
