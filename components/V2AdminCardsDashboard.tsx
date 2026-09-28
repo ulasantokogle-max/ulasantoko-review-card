@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { getV2PublicOrigin, getV2PublicUrl } from "@/lib/v2-public-url";
 import { getV2PublicUrl } from "@/lib/v2-public-url";
 
 type Card = {
