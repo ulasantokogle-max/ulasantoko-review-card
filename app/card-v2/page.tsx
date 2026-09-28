@@ -1,4 +1,4 @@
-import { getCardAdapter } from "@/lib/card-adapter";
+import { getCardAdapterV2 } from "@/lib/card-adapter-v2";
 
 type Props = { searchParams: Promise<{ code?: string }> };
 
@@ -10,7 +10,7 @@ export default async function CardV2Page({ searchParams }: Props) {
     return <main className="min-h-screen flex items-center justify-center p-6"><div className="text-center"><h1 className="text-2xl font-bold">Card tidak ditemukan</h1><p className="mt-2 text-gray-500">Kode card belum diberikan.</p></div></main>;
   }
 
-  const card = await getCardAdapter(code);
+  const card = await getCardAdapterV2(code);
 
   if (!card || !card.active) {
     return <main className="min-h-screen flex items-center justify-center p-6"><div className="text-center"><h1 className="text-2xl font-bold">Card tidak tersedia</h1><p className="mt-2 text-gray-500">Card tidak ditemukan atau sedang tidak aktif.</p></div></main>;
