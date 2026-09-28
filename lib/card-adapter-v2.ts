@@ -23,9 +23,7 @@ export type CardAdapterV2 = {
 type CardApiResponse = {
   ok?: boolean;
   error?: string;
-  qr?: {
-    target_path?: string | null;
-  };
+  qr?: { target_path?: string | null };
   card?: {
     id?: string;
     status?: string | null;
@@ -53,8 +51,20 @@ type CardApiResponse = {
 type FeedbackPage = {
   id: string;
   page_code: string;
+  slug?: string | null;
+  business_name?: string | null;
+  logo_url?: string | null;
+  cover_url?: string | null;
+  primary_color?: string | null;
+  secondary_color?: string | null;
+  google_review_url?: string | null;
+  review_title?: string | null;
+  review_description?: string | null;
+  complaint_title?: string | null;
+  complaint_description?: string | null;
   feedback_enabled?: boolean | null;
   complaint_enabled?: boolean | null;
+  is_active?: boolean | null;
   settings?: Record<string, unknown> | null;
 };
 
@@ -65,8 +75,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("V2_CONFIG_ERROR: Supabase environment variables are missing");
 }
 
-// The guard above guarantees these values exist; keep local constants so
-// TypeScript also knows they are strings inside the adapter request.
 const supabaseUrlValue = supabaseUrl;
 const supabaseAnonKeyValue = supabaseAnonKey;
 const cardApiUrl = `${supabaseUrlValue.replace(/\/$/, "")}/functions/v1/card-api`;
@@ -83,13 +91,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * V2-only Card Adapter.
  *
- * IMPORTANT:
- * - Does not touch the legacy `lib/card-adapter.ts`.
- * - The HTTP card-api remains the primary V2 source for card/landing data.
- * - Existing `feedback_pages.settings` is used as an additive compatibility
- *   source for the V2 presentation config (logo, cover, WhatsApp, etc.).
- * - This keeps the current V2 architecture while mapping the configuration
- *   already used by the existing dashboard without changing the legacy flow.
+ * Identity/status still comes from the V2 card API. Presentation data is
+ * resolved from the existing `feedback_pages` record for the same card code.
+ * This is important because the dashboard's store settings (logo, cover,
+ * Google Review URL, etc.) already live there. The legacy adapter is untouched.
  */
 export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | null> {
   const normalizedCode = code?.trim().toUpperCase();
@@ -135,24 +140,22 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
   }
 
   const card = payload.card;
-  const business = payload.business;
-  const landingPage = payload.landing_page;
 
   if (!card?.id || !card.card_code) {
     console.error("CARD_ADAPTER_V2_INVALID_RESPONSE:", payload);
     throw new Error("V2_INVALID_RESPONSE: card.id or card.card_code is missing");
   }
 
-  const landingSettings = isRecord(landingPage?.settings) ? landingPage.settings : {};
-
-  // `feedback_pages` is the existing source used by the dashboard for the
-  // store presentation settings. Read it only when needed, then merge it
-  // underneath any settings already supplied by the V2 API.
+  // IMPORTANT: feedback_pages is the source already used by the dashboard
+  // and the existing LP route. Resolve it by page_code so LP00103 keeps its
+  // real store configuration instead of inheriting a test/default landing page.
   let feedbackPage: FeedbackPage | null = null;
   try {
     const { data, error } = await supabase
       .from("feedback_pages")
-      .select("id, page_code, feedback_enabled, complaint_enabled, settings")
+      .select(
+        "id, page_code, slug, business_name, logo_url, cover_url, primary_color, secondary_color, google_review_url, review_title, review_description, complaint_title, complaint_description, feedback_enabled, complaint_enabled, is_active, settings",
+      )
       .eq("page_code", normalizedCode)
       .eq("is_active", true)
       .maybeSingle();
@@ -166,40 +169,65 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     console.warn("CARD_ADAPTER_V2_PAGE_FETCH_WARNING:", error);
   }
 
-  const feedbackSettings = isRecord(feedbackPage?.settings) ? feedbackPage.settings : {};
+  const apiLandingSettings = isRecord(payload.landing_page?.settings)
+    ? payload.landing_page.settings
+    : {};
+  const feedbackSettings = isRecord(feedbackPage?.settings)
+    ? feedbackPage.settings
+    : {};
+
+  // Feedback-page columns are flattened into the same config object consumed
+  // by V2CustomerLanding. Explicit dashboard values win over API defaults.
   const settings: Record<string, unknown> = {
+    ...apiLandingSettings,
     ...feedbackSettings,
-    ...landingSettings,
+    ...(feedbackPage?.logo_url ? { logo_url: feedbackPage.logo_url } : {}),
+    ...(feedbackPage?.cover_url ? { cover_url: feedbackPage.cover_url } : {}),
+    ...(feedbackPage?.primary_color ? { primary_color: feedbackPage.primary_color } : {}),
+    ...(feedbackPage?.secondary_color ? { secondary_color: feedbackPage.secondary_color } : {}),
   };
 
   const googleReviewUrl =
-    getString(business?.google_review_url) ??
-    getString(card?.google_review_url) ??
+    getString(feedbackPage?.google_review_url) ??
+    getString(payload.business?.google_review_url) ??
+    getString(card.google_review_url) ??
     getString(settings.google_review_url);
 
-  const landingPageActive = landingPage?.is_active !== false;
-  const pageId =
-    getString(landingPage?.id) ??
-    getString(feedbackPage?.id);
+  const active = card.status === "active" && feedbackPage?.is_active !== false;
+  const pageId = getString(feedbackPage?.id) ?? getString(payload.landing_page?.id);
+
+  // Do not let a test/default landing_page response overwrite the real store
+  // presentation. Only use explicit V2 settings when present; otherwise keep
+  // the stable customer-facing defaults.
+  const headline =
+    getString(settings.headline) ??
+    getString(settings.customer_headline) ??
+    "BAGAIMANA PENGALAMAN ANDA HARI INI?";
+  const description =
+    getString(settings.description) ??
+    getString(settings.customer_description) ??
+    "Kami selalu ingin memberikan yang terbaik untuk Anda.";
 
   return {
     id: card.id,
     code: card.card_code,
-    name: getString(business?.business_name),
-    active: card.status === "active",
+    name:
+      getString(feedbackPage?.business_name) ??
+      getString(payload.business?.business_name) ??
+      getString(settings.business_name),
+    active,
     googleReviewUrl,
     feedback: {
       enabled:
         Boolean(pageId) &&
-        landingPageActive &&
-        (landingPage?.is_active !== false) &&
+        active &&
         (feedbackPage?.feedback_enabled ?? true),
       pageId,
     },
     complaint: {
       enabled:
         Boolean(pageId) &&
-        landingPageActive &&
+        active &&
         (feedbackPage?.complaint_enabled ?? true),
     },
     config: settings,
@@ -207,10 +235,15 @@ export async function getCardAdapterV2(code: string): Promise<CardAdapterV2 | nu
     targetPath: getString(payload.qr?.target_path),
     landingPage: {
       id: pageId,
-      slug: getString(landingPage?.slug),
-      title: getString(landingPage?.title),
-      headline: getString(landingPage?.headline),
-      description: getString(landingPage?.description),
+      slug:
+        getString(feedbackPage?.slug) ??
+        getString(payload.landing_page?.slug) ??
+        normalizedCode,
+      title:
+        getString(feedbackPage?.business_name) ??
+        getString(payload.landing_page?.title),
+      headline,
+      description,
     },
   };
 }
