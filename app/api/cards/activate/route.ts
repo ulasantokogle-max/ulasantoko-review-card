@@ -60,83 +60,49 @@ function isValidGoogleMapsUrl(value: string) {
   }
 }
 
-async function extractPlaceIdFromGoogleMapsUrl(
-  googleMapsUrl: string,
-  businessName: string
-) {
-  /*
-   * 1. Resolve Google Maps URL
-   */
-  const response = await fetch(googleMapsUrl, {
-    method: "GET",
-    redirect: "follow",
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (compatible; GoogleMapsPlaceResolver/1.0)",
-    },
-  });
-
-  const finalUrl = response.url;
-
-  /*
-   * 2. Coba ambil Place ID dari URL
-   */
-  try {
-    const parsedUrl = new URL(finalUrl);
-
-    const placeId =
-      parsedUrl.searchParams.get("placeid") ||
-      parsedUrl.searchParams.get("place_id");
-
-    if (placeId) {
-      return placeId;
-    }
-  } catch {
-    // lanjut ke Google Places API
+/**
+ * Resolve an explicit Google Place ID from the supplied link.
+ * NEVER guess the destination from a name-only Places text search.
+ * A business with a similar name can be in another country.
+ */
+async function extractPlaceIdFromGoogleMapsUrl(googleMapsUrl: string) {
+  const inputUrl = new URL(googleMapsUrl);
+  const allowedHosts = new Set([
+    "google.com", "www.google.com", "maps.google.com",
+    "maps.app.goo.gl", "search.google.com",
+  ]);
+  if (inputUrl.protocol !== "https:" || !allowedHosts.has(inputUrl.hostname)) {
+    throw new Error("Gunakan tautan Google Maps atau Google Review yang valid.");
   }
 
-  /*
-   * 3. Fallback ke Google Places API
-   */
-  if (!googleMapsApiKey) {
-    throw new Error("GOOGLE_MAPS_API_KEY belum tersedia.");
+  let parsed = inputUrl;
+  if (inputUrl.hostname === "maps.app.goo.gl") {
+    const response = await fetch(inputUrl.toString(), {
+      method: "GET",
+      redirect: "follow",
+      signal: AbortSignal.timeout(8000),
+    });
+    parsed = new URL(response.url);
   }
 
-  const placesResponse = await fetch(
-    "https://places.googleapis.com/v1/places:searchText",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": googleMapsApiKey,
-        "X-Goog-FieldMask": "places.id,places.displayName",
-      },
-      body: JSON.stringify({
-        textQuery: businessName,
-        languageCode: "id",
-      }),
-    }
-  );
-
-  if (!placesResponse.ok) {
-    const errorText = await placesResponse.text();
-
-    console.error("GOOGLE_PLACES_ERROR", errorText);
-
-    throw new Error("Gagal mencari Place ID Google Maps.");
+  if (parsed.protocol !== "https:" ||
+      !allowedHosts.has(parsed.hostname) ||
+      parsed.username || parsed.password) {
+    throw new Error("Tautan Google Maps mengarah ke domain yang tidak valid.");
   }
 
-  const placesData = await placesResponse.json();
+  const placeId = parsed.searchParams.get("placeid") ||
+    parsed.searchParams.get("place_id");
 
-  const place = placesData?.places?.[0];
-
-  if (!place?.id) {
+  if (!placeId || !/^[-_A-Za-z0-9]+$/.test(placeId)) {
     throw new Error(
-      "Place ID tidak ditemukan. Pastikan nama bisnis sesuai dengan Google Maps."
+      "Place ID tidak ditemukan secara pasti pada tautan ini. " +
+      "Gunakan link Tulis Ulasan dari Google Business Profile, " +
+      "atau tautan Google Maps yang memuat parameter placeid. " +
+      "Aktivasi dihentikan agar tidak salah memilih lokasi."
     );
   }
-
-  return place.id;
+  return placeId;
 }
 function isValidGoogleReviewUrl(value: string): boolean {
   try {
@@ -334,10 +300,7 @@ export async function POST(request: NextRequest) {
 let placeId: string;
 
 try {
-  placeId = await extractPlaceIdFromGoogleMapsUrl(
-    googleMapsUrl,
-    businessName
-  );
+  placeId = await extractPlaceIdFromGoogleMapsUrl(googleMapsUrl);
 } catch (error) {
   console.error("PLACE_ID_EXTRACTION_ERROR", error);
 
