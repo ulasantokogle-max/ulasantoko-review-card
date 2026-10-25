@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { hashActivationPin } from "@/lib/pin";
+import { hashActivationPin, generateActivationPin } from "@/lib/pin";
+import { randomInt } from "node:crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -18,12 +19,8 @@ function getSupabase() {
 }
 
 function generateCardCode() {
-  const number = Math.floor(10000 + Math.random() * 90000);
+  const number = randomInt(10000, 100000);
   return `ULAS-${number}`;
-}
-
-function generateActivationPin() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
 export async function POST(request: NextRequest) {
@@ -131,8 +128,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: error.message,
-          error: error,
+          message: "Kartu gagal dibuat. Hubungi administrator.",
         },
         { status: 500 }
       );
