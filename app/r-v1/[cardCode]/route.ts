@@ -32,7 +32,7 @@ function failure(message: string, status: number) {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ cardCode: string }> }
 ) {
   const { cardCode } = await params;
@@ -57,7 +57,7 @@ export async function GET(
       return failure("Kartu tidak ditemukan.", 404);
     }
     if (card.status === "inactive") {
-      const activationUrl = new URL("https://app.ulasantoko.space/activate");
+      const activationUrl = new URL("/activate", request.url);
       activationUrl.searchParams.set("card_code", code);
       return NextResponse.redirect(activationUrl, {status: 307, headers: {"Cache-Control": "no-store, private"}});
     }
