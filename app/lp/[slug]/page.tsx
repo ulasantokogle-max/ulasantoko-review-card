@@ -1,94 +1,72 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import LP002 from "@/components/lp/lp002";
 
-type FeedbackPage = {
-  id: string;
-  page_code: string;
-  slug: string;
-  business_name: string;
-  logo_url: string | null;
-  cover_url: string | null;
+type V2Page = {
+  lp_slug: string;
+  template_key: string;
+  title: string | null;
+  headline: string | null;
+  description: string | null;
   primary_color: string | null;
   secondary_color: string | null;
-  google_review_url: string | null;
-  template_key: string | null;
-  industry: string | null;
-
-  review_title: string | null;
-  review_description: string | null;
-
-  complaint_title: string | null;
-  complaint_description: string | null;
-
-  is_active: boolean;
+  review_enabled: boolean;
+  complaint_enabled: boolean;
+  feedback_enabled: boolean;
+  v2_cards: {
+    card_code: string;
+    status: string;
+    v2_businesses: {
+      business_name: string;
+      google_review_url: string | null;
+      logo_url: string | null;
+      address: string | null;
+    } | null;
+  } | null;
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey
-);
+async function getPage(slug: string): Promise<V2Page | null> {
+  const normalized = decodeURIComponent(slug).trim().toUpperCase();
 
-async function getFeedbackPage(slug: string): Promise<FeedbackPage | null> {
   const { data, error } = await supabase
-    .from("feedback_pages")
+    .from("v2_landing_pages")
     .select(`
-      id,
-      page_code,
-      slug,
-      business_name,
-      logo_url,
-      cover_url,
+      lp_slug,
+      template_key,
+      title,
+      headline,
+      description,
       primary_color,
       secondary_color,
-      google_review_url,
-      template_key,
-      industry,
-      review_title,
-      review_description,
-      complaint_title,
-      complaint_description,
-      is_active
+      review_enabled,
+      complaint_enabled,
+      feedback_enabled,
+      v2_cards!inner (
+        card_code,
+        status,
+        v2_businesses!inner (
+          business_name,
+          google_review_url,
+          logo_url,
+          address
+        )
+      )
     `)
-    .or(`slug.eq.${slug},page_code.eq.${slug}`)
+    .eq("lp_slug", normalized)
     .eq("is_active", true)
+    .eq("v2_cards.status", "active")
+    .eq("v2_cards.v2_businesses.status", "active")
     .maybeSingle();
 
   if (error) {
-    console.error("GET_FEEDBACK_PAGE_ERROR:", error);
+    console.error("V2_LP_LOOKUP_ERROR:", error);
     return null;
   }
 
-  return data;
-}
-
-function getIndustryLabel(industry: string | null) {
-  switch (industry) {
-    case "food_beverage":
-      return "Tempat usaha";
-    case "hotel":
-      return "Hotel & Hospitality";
-    case "salon":
-      return "Salon & Beauty";
-    case "clinic":
-      return "Layanan kesehatan";
-    case "retail":
-      return "Toko & Retail";
-    case "automotive":
-      return "Otomotif";
-    case "service":
-      return "Layanan";
-    default:
-      return "Bisnis";
-  }
-}
-
-function isLP002(templateKey: string | null) {
-  const key = (templateKey || "").trim().toLowerCase();
-  return ["lp002", "lp-002", "lp_002", "v2", "modern"].includes(key);
+  return data as V2Page | null;
 }
 
 export default async function LandingPage({
@@ -97,103 +75,68 @@ export default async function LandingPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const page = await getFeedbackPage(slug);
+  const page = await getPage(slug);
 
-  if (!page) {
+  if (!page || !page.v2_cards?.v2_businesses) {
     notFound();
   }
 
-  // LP002 is an additive V2 template. LP001 remains the existing default.
-  if (isLP002(page.template_key)) {
-    return <LP002 page={page} />;
-  }
-
-  const reviewTitle =
-    page.review_title || "Bagikan Pengalaman Anda";
-
-  const reviewDescription =
-    page.review_description ||
-    "Bantu bisnis kami berkembang dengan memberikan ulasan di Google Maps.";
-
-  const complaintTitle =
-    page.complaint_title || "Hubungi Layanan Pelanggan";
-
-  const complaintDescription =
-    page.complaint_description ||
-    "Ada kendala atau pengalaman yang kurang menyenangkan? Sampaikan kepada kami agar dapat segera ditangani.";
-
-  const industryLabel = getIndustryLabel(page.industry);
+  const business = page.v2_cards.v2_businesses;
+  const title = page.title || business.business_name;
+  const headline = page.headline || "Bagaimana pengalaman Anda hari ini?";
+  const description = page.description || "Bantu kami memberikan pengalaman yang lebih baik.";
+  const reviewUrl = business.google_review_url;
+  const primary = page.primary_color || "#102b24";
+  const secondary = page.secondary_color || "#b96912";
 
   return (
-    <main className="lp-page">
-      <div className="lp-container">
-        <div className="lp-top-decoration">
-          <div className="lp-decoration-shape shape-one" />
-          <div className="lp-decoration-shape shape-two" />
-          <div className="lp-decoration-shape shape-three" />
-        </div>
-
-        <section className="lp-header">
-          <div className="lp-logo">
-            {page.business_name
-              .split(" ")
-              .slice(0, 2)
-              .map((word) => word.charAt(0).toUpperCase())
-              .join("")}
+    <main className="v2-lp" style={{ "--v2-primary": primary, "--v2-secondary": secondary } as React.CSSProperties}>
+      <div className="v2-shell">
+        <header className="v2-hero">
+          <div className="v2-badge">
+            {business.logo_url ? <img src={business.logo_url} alt="" /> : business.business_name.slice(0, 1).toUpperCase()}
           </div>
+          <div className="v2-eyebrow">TERIMA KASIH SUDAH BERKUNJUNG</div>
+          <h1>{title}</h1>
+          {business.address && <p className="v2-address">{business.address}</p>}
+        </header>
 
-          <div className="lp-eyebrow">
-            TERIMA KASIH SUDAH BERKUNJUNG
-          </div>
-
-          <h1>{page.business_name}</h1>
-          <div className="lp-line" />
-          <p className="lp-industry">{industryLabel}</p>
+        <section className="v2-intro">
+          <h2>{headline}</h2>
+          <p>{description}</p>
         </section>
 
-        <section className="lp-intro">
-          <h2>Bagaimana pengalaman Anda hari ini?</h2>
-          <p>Kami selalu ingin memberikan pengalaman terbaik untuk Anda.</p>
-        </section>
-
-        <section className="lp-card review-card">
-          <div className="lp-card-icon review-icon"><span>★</span></div>
-          <div className="lp-card-content">
-            <h3>{reviewTitle}</h3>
-            <p>{reviewDescription}</p>
-            {page.google_review_url ? (
-              <a href={page.google_review_url} target="_blank" rel="noopener noreferrer" className="lp-button review-button">
-                <span className="google-icon">G</span>
-                <span>Tulis Review di Google Maps</span>
-                <span className="arrow">→</span>
-              </a>
-            ) : (
-              <div className="lp-disabled-button">Link Google Review belum tersedia</div>
-            )}
-          </div>
-        </section>
-
-        <section className="lp-card complaint-card">
-          <div className="lp-card-icon complaint-icon"><span>✓</span></div>
-          <div className="lp-card-content">
-            <h3>{complaintTitle}</h3>
-            <p>{complaintDescription}</p>
-            <a href={`/lp/${page.slug}/complaint`} className="lp-button complaint-button">
-              <span className="message-icon">□</span>
-              <span>Sampaikan Keluhan</span>
+        <section className="v2-actions">
+          {page.review_enabled && reviewUrl && (
+            <a className="v2-action review" href={reviewUrl} target="_blank" rel="noopener noreferrer">
+              <span className="icon">★</span>
+              <span><b>Tulis Review di Google</b><small>Bagikan pengalaman Anda</small></span>
               <span className="arrow">→</span>
             </a>
-          </div>
+          )}
+
+          {page.feedback_enabled && (
+            <a className="v2-action feedback" href={`/lp/${page.lp_slug}/feedback`}>
+              <span className="icon">♥</span>
+              <span><b>Kirim Feedback</b><small>Sampaikan pendapat Anda langsung ke kami</small></span>
+              <span className="arrow">→</span>
+            </a>
+          )}
+
+          {page.complaint_enabled && (
+            <a className="v2-action complaint" href={`/lp/${page.lp_slug}/complaint`}>
+              <span className="icon">✓</span>
+              <span><b>Sampaikan Keluhan</b><small>Ada kendala? Kami siap menanganinya</small></span>
+              <span className="arrow">→</span>
+            </a>
+          )}
         </section>
 
-        <footer className="lp-footer">
-          <span>Powered by</span>
-          <strong>Ulasan Toko</strong>
-        </footer>
+        <footer className="v2-footer">Powered by <b>Ulasan Toko V2</b> · {page.lp_slug}</footer>
       </div>
 
       <style>{`
-        *{box-sizing:border-box}body{margin:0;background:#f4f6f5;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.lp-page{min-height:100vh;padding:24px 16px 50px;background:radial-gradient(circle at top,#fffaf3 0%,#f4f6f5 48%,#edf1ef 100%)}.lp-container{width:100%;max-width:520px;margin:0 auto;background:rgba(255,255,255,.96);border-radius:30px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.08)}.lp-top-decoration{position:relative;height:92px;overflow:hidden;background:linear-gradient(135deg,#19332c,#284b40)}.lp-decoration-shape{position:absolute;border-radius:50%;opacity:.16;background:#d98a24}.shape-one{width:190px;height:190px;right:-50px;top:-110px}.shape-two{width:130px;height:130px;left:-50px;bottom:-95px}.shape-three{width:90px;height:90px;right:100px;top:20px}.lp-header{text-align:center;padding:0 28px;margin-top:-40px;position:relative}.lp-logo{width:80px;height:80px;margin:0 auto 24px;display:flex;align-items:center;justify-content:center;border-radius:22px;background:#fff;color:#19332c;font-size:23px;font-weight:800;letter-spacing:-1px;box-shadow:0 8px 25px rgba(0,0,0,.13)}.lp-eyebrow{font-size:11px;letter-spacing:2px;font-weight:700;color:#9a6728;margin-bottom:10px}.lp-header h1{margin:0;color:#17221f;font-size:29px;line-height:1.2;font-weight:800;letter-spacing:-.7px}.lp-line{width:45px;height:4px;border-radius:99px;background:#b96912;margin:18px auto 10px}.lp-industry{margin:0;color:#8b928f;font-size:13px}.lp-intro{text-align:center;padding:30px 28px 22px}.lp-intro h2{margin:0 0 10px;color:#27312e;font-size:20px;font-weight:750}.lp-intro p{margin:0;color:#8b928f;font-size:14px;line-height:1.6}.lp-card{margin:0 20px 14px;padding:18px;display:flex;gap:15px;border-radius:23px}.review-card{background:#fff7ee;border:1px solid #f4e8d9}.complaint-card{background:#f1f5f4;border:1px solid #e4ebe8}.lp-card-icon{flex:0 0 47px;width:47px;height:47px;border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800}.review-icon{background:#f8e8d5;color:#b96912}.complaint-icon{background:#e5ece9;color:#19332c}.lp-card-content{min-width:0;flex:1}.lp-card-content h3{margin:2px 0 5px;color:#29322f;font-size:15px;font-weight:750}.lp-card-content p{margin:0 0 14px;color:#8a918e;font-size:12px;line-height:1.5}.lp-button{width:100%;min-height:46px;padding:10px 14px;border-radius:99px;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-size:12px;font-weight:750}.review-button{color:#fff;background:linear-gradient(135deg,#b95f06,#d8780c);box-shadow:0 7px 18px rgba(185,95,6,.18)}.complaint-button{color:#fff;background:#102b24;box-shadow:0 7px 18px rgba(16,43,36,.15)}.google-icon{width:19px;height:19px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#fff;color:#4285f4;font-size:12px;font-weight:900}.message-icon{font-size:14px}.arrow{margin-left:auto;font-size:17px}.lp-disabled-button{padding:12px;border-radius:99px;text-align:center;font-size:11px;color:#999;background:#eee}.lp-footer{padding:24px;display:flex;align-items:center;justify-content:center;gap:5px;color:#a2a8a5;font-size:10px}.lp-footer strong{color:#6f7773}@media(max-width:400px){.lp-page{padding:0}.lp-container{min-height:100vh;border-radius:0}.lp-header h1{font-size:26px}.lp-card{margin-left:14px;margin-right:14px}}
+        *{box-sizing:border-box}body{margin:0}.v2-lp{min-height:100vh;padding:18px 14px 40px;background:radial-gradient(circle at top,#fffaf3 0%,#f3f6f4 48%,#e9efec 100%);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#1d2925}.v2-shell{max-width:540px;margin:0 auto;background:rgba(255,255,255,.96);border-radius:30px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.09)}.v2-hero{padding:46px 28px 28px;text-align:center;background:linear-gradient(150deg,var(--v2-primary),#244a3e);color:#fff}.v2-badge{width:78px;height:78px;margin:0 auto 18px;border-radius:22px;background:#fff;color:var(--v2-primary);display:grid;place-items:center;font-size:28px;font-weight:900;box-shadow:0 10px 30px rgba(0,0,0,.18);overflow:hidden}.v2-badge img{width:100%;height:100%;object-fit:cover}.v2-eyebrow{font-size:10px;letter-spacing:2px;font-weight:800;opacity:.72;margin-bottom:10px}.v2-hero h1{margin:0;font-size:30px;line-height:1.16;letter-spacing:-.7px}.v2-address{margin:12px auto 0;max-width:420px;font-size:12px;line-height:1.5;opacity:.72}.v2-intro{text-align:center;padding:30px 28px 20px}.v2-intro h2{margin:0 0 8px;font-size:20px;letter-spacing:-.2px}.v2-intro p{margin:0;color:#7b8580;font-size:14px;line-height:1.6}.v2-actions{padding:0 18px 18px;display:grid;gap:12px}.v2-action{display:grid;grid-template-columns:46px 1fr 22px;gap:13px;align-items:center;padding:15px;border-radius:20px;text-decoration:none;border:1px solid #e8ecea;box-shadow:0 5px 18px rgba(0,0,0,.035);transition:transform .15s ease}.v2-action:hover{transform:translateY(-1px)}.v2-action .icon{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;font-weight:900}.v2-action b{display:block;font-size:14px;color:#26312d;margin-bottom:3px}.v2-action small{display:block;color:#8a938f;font-size:11px;line-height:1.45}.v2-action .arrow{font-size:18px;color:#8d9692;text-align:right}.review{background:#fff8ef}.review .icon{background:#f6e5d1;color:var(--v2-secondary)}.feedback{background:#f4faf7}.feedback .icon{background:#e2f0e9;color:var(--v2-primary)}.complaint{background:#f4f6f5}.complaint .icon{background:#e5ebe8;color:var(--v2-primary)}.v2-footer{text-align:center;padding:18px;color:#a0a8a4;font-size:10px}.v2-footer b{color:#69736e}@media(max-width:420px){.v2-lp{padding:0}.v2-shell{min-height:100vh;border-radius:0}.v2-hero{padding-top:40px}}
       `}</style>
     </main>
   );
