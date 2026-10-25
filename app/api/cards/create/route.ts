@@ -4,20 +4,18 @@ import { hashActivationPin } from "@/lib/pin";
 
 export const dynamic = "force-dynamic";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const adminKey = process.env.ADMIN_KEY!;
+const adminKey = process.env.ADMIN_KEY;
 
-const supabase = createClient(
-  supabaseUrl,
-  supabaseServiceRoleKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("Supabase server environment is not configured.");
   }
-);
+  return createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
 
 function generateCardCode() {
   const number = Math.floor(10000 + Math.random() * 90000);
@@ -54,6 +52,8 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    const supabase = getSupabase();
 
     let cardCode = cardCodeInput;
 
