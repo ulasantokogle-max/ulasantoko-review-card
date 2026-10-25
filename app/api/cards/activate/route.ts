@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { verifyActivationPin } from "@/lib/pin";
 
 export const dynamic = "force-dynamic";
@@ -131,6 +132,10 @@ export async function POST(request: NextRequest) {
     const activationPin = normalizePin(body.activation_pin ?? "");
     const businessName = normalizeBusinessName(body.business_name ?? "");
     const googleMapsUrl = (body.google_review_url ?? "").trim();
+
+    if (!(await checkV1RateLimit(supabase, request, "activate", cardCode))) {
+      return NextResponse.json({success:false,message:"Terlalu banyak percobaan atau keamanan sementara tidak tersedia."},{status:429,headers:{"Retry-After":"900"}});
+    }
 
     /*
      * ================================
