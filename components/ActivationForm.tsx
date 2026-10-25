@@ -1,12 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function ActivationForm() {
   const router = useRouter();
 
   const [cardCode, setCardCode] = useState("");
+
+  useEffect(() => {
+    const providedCode = new URLSearchParams(window.location.search).get("card_code");
+    if (providedCode && /^ULAS-\d{5,}$/.test(providedCode.trim().toUpperCase())) {
+      setCardCode(providedCode.trim().toUpperCase());
+    }
+  }, []);
   const [activationPin, setActivationPin] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [reviewUrl, setReviewUrl] = useState("");
@@ -44,7 +51,7 @@ export default function ActivationForm() {
     }
 
     if (!reviewUrl.trim()) {
-      setMessage("Link Google Maps wajib diisi.");
+      setMessage("Link Google Review wajib diisi.");
       setLoading(false);
       return;
     }
@@ -170,13 +177,13 @@ export default function ActivationForm() {
           onChange={(e) =>
             setReviewUrl(e.target.value)
           }
-          placeholder="https://maps.app.goo.gl/..."
+          placeholder="https://search.google.com/local/writereview?placeid=..."
           className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"
         />
 
         <p className="mt-2 text-xs text-gray-500">
           Masukkan link Google Maps bisnis Anda.
-          Sistem akan otomatis menemukan Place ID bisnis Anda.1
+          Untuk mencegah salah lokasi, gunakan link Tulis Ulasan dari Google Business Profile yang memuat Place ID.
         </p>
       </label>
 
