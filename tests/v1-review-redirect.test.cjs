@@ -37,3 +37,16 @@ test("other destinations are rejected", () => {
     assert.equal(isApproved(url), false, url);
   }
 });
+
+test("inactive V1 card routes to activation on same host with its code", () => {
+  assert.match(source, /card\.status === "inactive"/);
+  assert.match(source, /new URL\("\/activate", request\.url\)/);
+  assert.match(source, /activationUrl\.searchParams\.set\("card_code", code\)/);
+});
+
+test("V1 active route is fail-closed and does not use a name-based search", () => {
+  assert.match(source, /card\.status !== "active"/);
+  assert.match(source, /return failure\("Tautan Google Review belum valid\.", 422\)/);
+  assert.doesNotMatch(source, /places:searchText|textQuery/);
+});
+
