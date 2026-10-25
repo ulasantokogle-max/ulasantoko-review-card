@@ -14,7 +14,7 @@ Rute baru: `/r-v1/ULAS-12345`
 | --- | --- |
 | Kode kosong/format salah | 400, tidak redirect |
 | Kode kartu tidak ditemukan | 404, tidak redirect |
-| Kartu inactive | 404, tidak redirect |
+| Kartu inactive | 307 ke `/activate?card_code=...` di host aplikasi yang sama |
 | Kartu active + Google Review URL valid | 307 dengan Location = URL Google, tanpa landing |
 | Kartu active + URL kosong | 422 |
 | Kartu active + URL non-Google/http/userinfo | 422 |
@@ -35,5 +35,5 @@ Rute baru: `/r-v1/ULAS-12345`
 
 ## Kebijakan data
 Tidak melakukan auto-pick bisnis dari hasil Google Places berdasarkan nama saja.
-Aktivasi harus memvalidasi Place ID terhadap bisnis yang benar.
+Aktivasi mensyaratkan Place ID eksplisit dalam link; owner wajib memverifikasi nama/lokasi bisnis yang dibuka di Google sebelum memakai kartu. Pemeriksaan sintaks Place ID saja tidak membuktikan identitas bisnis.
 Tautan ke composer Google Review harus HTTPS dan tidak dapat berasal dari domain lain.
