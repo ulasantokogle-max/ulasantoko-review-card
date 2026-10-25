@@ -31,6 +31,11 @@ export async function POST(request: NextRequest) {
     const receivedAdminKey = String(body.admin_key ?? "").trim();
     const cardCodeInput = String(body.card_code ?? "").trim().toUpperCase();
 
+    const supabase = getSupabase();
+    if (!(await checkV1RateLimit(supabase, request, "create"))) {
+      return NextResponse.json({success:false,message:"Terlalu banyak percobaan atau keamanan sementara tidak tersedia."},{status:429,headers:{"Retry-After":"900"}});
+    }
+
     if (!adminKey) {
       return NextResponse.json(
         {
@@ -51,10 +56,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = getSupabase();
-    if (!(await checkV1RateLimit(supabase, request, "create"))) {
-      return NextResponse.json({success:false,message:"Terlalu banyak percobaan atau keamanan sementara tidak tersedia."},{status:429,headers:{"Retry-After":"900"}});
-    }
 
     let cardCode = cardCodeInput;
 
