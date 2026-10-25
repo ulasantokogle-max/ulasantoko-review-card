@@ -4,20 +4,20 @@ import { verifyActivationPin } from "@/lib/pin";
 
 export const dynamic = "force-dynamic";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY!;
-
-const supabase = createClient(
-  supabaseUrl,
-  supabaseServiceRoleKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
+/**
+ * Create Supabase client only when the API request executes.
+ * Preview builds can collect route metadata without connecting to Supabase.
+ */
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("Supabase server environment is not configured.");
   }
-);
+  return createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
 
 type ActivateRequest = {
   card_code?: string;
@@ -125,6 +125,7 @@ function isValidGoogleReviewUrl(value: string): boolean {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as ActivateRequest;
+    const supabase = getSupabase();
 
     const cardCode = normalizeCardCode(body.card_code ?? "");
     const activationPin = normalizePin(body.activation_pin ?? "");
