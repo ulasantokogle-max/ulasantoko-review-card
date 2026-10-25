@@ -53,8 +53,16 @@ export async function GET(
       console.error("V1_DIRECT_REVIEW_LOOKUP_ERROR", error.code);
       return failure("Gagal memeriksa kartu.", 503);
     }
-    if (!card || card.status !== "active") {
-      return failure("Kartu tidak ditemukan atau belum aktif.", 404);
+    if (!card) {
+      return failure("Kartu tidak ditemukan.", 404);
+    }
+    if (card.status === "inactive") {
+      const activationUrl = new URL("https://app.ulasantoko.space/activate");
+      activationUrl.searchParams.set("card_code", code);
+      return NextResponse.redirect(activationUrl, {status: 307, headers: {"Cache-Control": "no-store, private"}});
+    }
+    if (card.status !== "active") {
+      return failure("Kartu tidak tersedia.", 404);
     }
 
     const url = card.google_review_url;
