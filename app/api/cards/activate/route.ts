@@ -68,59 +68,30 @@ function isValidGoogleMapsUrl(value: string) {
  */
 async function extractPlaceIdFromGoogleMapsUrl(googleMapsUrl: string) {
   const inputUrl = new URL(googleMapsUrl);
-  const allowedHosts = new Set([
-    "google.com", "www.google.com", "maps.google.com",
-    "maps.app.goo.gl", "search.google.com",
-  ]);
-  if (inputUrl.protocol !== "https:" || !allowedHosts.has(inputUrl.hostname)) {
-    throw new Error("Gunakan tautan Google Maps atau Google Review yang valid.");
+  // Accept only an explicit Google review composer URL. Never follow arbitrary
+  // HTTP redirects from untrusted links or infer the business from name search.
+  if (inputUrl.protocol !== "https:" ||
+      inputUrl.hostname !== "search.google.com" ||
+      inputUrl.pathname !== "/local/writereview" ||
+      inputUrl.username || inputUrl.password) {
+    throw new Error("Gunakan link Tulis Ulasan resmi dari Google Business Profile, bukan link Maps pendek.");
   }
-
-  let parsed = inputUrl;
-  if (inputUrl.hostname === "maps.app.goo.gl") {
-    const response = await fetch(inputUrl.toString(), {
-      method: "GET",
-      redirect: "follow",
-      signal: AbortSignal.timeout(8000),
-    });
-    parsed = new URL(response.url);
-  }
-
-  if (parsed.protocol !== "https:" ||
-      !allowedHosts.has(parsed.hostname) ||
-      parsed.username || parsed.password) {
-    throw new Error("Tautan Google Maps mengarah ke domain yang tidak valid.");
-  }
-
-  const placeId = parsed.searchParams.get("placeid") ||
-    parsed.searchParams.get("place_id");
-
+  const placeId = inputUrl.searchParams.get("placeid");
   if (!placeId || !/^[-_A-Za-z0-9]+$/.test(placeId)) {
-    throw new Error(
-      "Place ID tidak ditemukan secara pasti pada tautan ini. " +
-      "Gunakan link Tulis Ulasan dari Google Business Profile, " +
-      "atau tautan Google Maps yang memuat parameter placeid. " +
-      "Aktivasi dihentikan agar tidak salah memilih lokasi."
-    );
+    throw new Error("Link harus berisi Place ID Google yang valid.");
   }
   return placeId;
 }
+
 function isValidGoogleReviewUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    
-    return (
-      url.protocol === "https:" &&
-      (
-        url.hostname === "google.com" ||
-        url.hostname.endsWith(".google.com") ||
-        url.hostname === "maps.google.com" ||
-        url.hostname === "maps.app.goo.gl"
-      )
-    );
-  } catch {
-    return false;
-  }
+    return url.protocol === "https:" &&
+      url.hostname === "search.google.com" &&
+      url.pathname === "/local/writereview" &&
+      !url.username && !url.password &&
+      /^[-_A-Za-z0-9]+$/.test(url.searchParams.get("placeid") ?? "");
+  } catch { return false; }
 }
 
 export async function POST(request: NextRequest) {
