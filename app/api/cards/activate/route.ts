@@ -26,6 +26,7 @@ type ActivateRequest = {
   activation_pin?: string;
   business_name?: string;
   google_review_url?: string;
+  confirmed_place_id?: string;
 };
 
 function normalizeCardCode(value: string) {
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
     const activationPin = normalizePin(body.activation_pin ?? "");
     const businessName = normalizeBusinessName(body.business_name ?? "");
     const googleMapsUrl = (body.google_review_url ?? "").trim();
+    const confirmedPlaceId = (body.confirmed_place_id ?? "").trim();
 
     if (!(await checkV1RateLimit(supabase, request, "activate", cardCode))) {
       return NextResponse.json({success:false,message:"Terlalu banyak percobaan atau keamanan sementara tidak tersedia."},{status:429,headers:{"Retry-After":"900"}});
@@ -109,6 +111,10 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    if (confirmedPlaceId && !/^ChIJ[-_A-Za-z0-9]+$/.test(confirmedPlaceId)) {
+      return NextResponse.json({success:false,message:"Place ID konfirmasi tidak valid."},{status:400});
     }
 
     if (!/^https:\/\//i.test(googleMapsUrl)) {
@@ -225,34 +231,33 @@ let placeId: string;
 
 try {
   placeId = await resolveV1GooglePlaceId(googleMapsUrl);
+  if (confirmedPlaceId && confirmedPlaceId !== placeId) {
+    return NextResponse.json({success:false,message:"Konfirmasi bisnis tidak cocok dengan link Google."},{status:422});
+  }
 } catch (error) {
-  // The Maps link may identify a place by a readable name, not a Place ID.
-  // Never use the first Places match without showing it to the user first.
   try {
     const suggestion = await suggestV1GooglePlace(googleMapsUrl);
     if (suggestion) {
-      return NextResponse.json({
-        success: false,
-        code: "CONFIRM_GOOGLE_PLACE",
-        message: "Periksa nama dan alamat bisnis sebelum aktivasi.",
-        candidate: suggestion,
-      }, { status: 422 });
+      if (confirmedPlaceId) {
+        if (confirmedPlaceId !== suggestion.placeId) {
+          return NextResponse.json({success:false,message:"Lokasi berubah. Periksa kembali bisnis Anda."},{status:422});
+        }
+        placeId = suggestion.placeId;
+      } else {
+        return NextResponse.json({
+          success: false,
+          code: "CONFIRM_GOOGLE_PLACE",
+          message: "Periksa nama dan alamat bisnis sebelum aktivasi.",
+          candidate: suggestion,
+        }, { status: 422 });
+      }
+    } else {
+      return NextResponse.json({success:false,message: error instanceof Error ? error.message : "Place ID belum dapat dipastikan."},{status:422});
     }
   } catch (lookupError) {
     console.error("V1_PLACE_SUGGESTION_ERROR", lookupError);
+    return NextResponse.json({success:false,message:"Pencarian lokasi gagal. Coba lagi atau gunakan link Tulis Ulasan resmi."},{status:422});
   }
-  console.error("PLACE_ID_EXTRACTION_ERROR", error);
-
-  return NextResponse.json(
-    {
-      success: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "Place ID Google Maps tidak ditemukan.",
-    },
-    { status: 422 }
-  );
 }
 
 /*
