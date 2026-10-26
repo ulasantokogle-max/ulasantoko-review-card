@@ -11,6 +11,61 @@ export default function CreateCardPage() {
     activation_pin: string;
   } | null>(null);
   const [error, setError] = useState("");
+  const [toolMessage, setToolMessage] = useState("");
+  const [writing, setWriting] = useState(false);
+  const cardUrl = (code: string) => "https://app.ulasantoko.space/r-v1/" + encodeURIComponent(code);
+
+  async function downloadQr() {
+    if (!result) return;
+    try {
+      const QRCode = await import("qrcode");
+      const canvas = document.createElement("canvas");
+      await QRCode.toCanvas(canvas, cardUrl(result.card_code), {
+        errorCorrectionLevel: "H", width: 1200, margin: 4,
+        color: { dark: "#000000", light: "#ffffff" },
+      });
+      const a = document.createElement("a");
+      a.download = "QR-" + result.card_code + ".png";
+      a.href = canvas.toDataURL("image/png");
+      a.click();
+      setToolMessage("QR PNG berhasil dibuat. Scan QR sebelum dicetak.");
+    } catch {
+      setToolMessage("Gagal membuat QR. Coba lagi.");
+    }
+  }
+
+  async function writeNfc() {
+    if (!result || writing) return;
+    const NFCReader = (window as Window & {
+      NDEFReader?: new () => { write(message: {records: {recordType: string; data: string}[]}): Promise<void> };
+    }).NDEFReader;
+    if (!NFCReader) {
+      setToolMessage("Web NFC tidak tersedia. Gunakan Chrome di Android dengan NFC aktif, atau salin URL ke aplikasi NFC Tools.");
+      return;
+    }
+    setWriting(true);
+    try {
+      setToolMessage("Dekatkan tag NFC ke HP Android.");
+      const writer = new NFCReader();
+      await writer.write({records: [{recordType: "url", data: cardUrl(result.card_code)}]});
+      setToolMessage("NFC berhasil ditulis. Uji baca kembali URL.");
+    } catch (err) {
+      setToolMessage(err instanceof Error ? "NFC gagal: " + err.message : "NFC gagal ditulis.");
+    } finally {
+      setWriting(false);
+    }
+  }
+
+  async function copyNfcUrl() {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(cardUrl(result.card_code));
+      setToolMessage("URL tersalin. Pakai record URL/URI pada NFC Tools.");
+    } catch {
+      setToolMessage("Tidak dapat menyalin otomatis. Salin URL yang ditampilkan.");
+    }
+  }
+
 
   async function createCard(e: React.FormEvent) {
     e.preventDefault();
@@ -18,6 +73,7 @@ export default function CreateCardPage() {
     setLoading(true);
     setError("");
     setResult(null);
+    setToolMessage("");
 
     try {
       const response = await fetch("/api/cards/create", {
@@ -165,6 +221,25 @@ setCardCode("");
 
             </div>
 
+
+            <div className="mt-5 space-y-3 border-t border-green-200 pt-4">
+              <p className="text-xs font-semibold text-gray-700">URL permanen QR & NFC</p>
+              <p className="break-all text-xs text-gray-700">{cardUrl(result.card_code)}</p>
+              <button type="button" onClick={downloadQr}
+                className="w-full bg-black text-white rounded-xl py-3 font-semibold">
+                Download QR (PNG)
+              </button>
+              <button type="button" onClick={writeNfc} disabled={writing}
+                className="w-full bg-blue-700 text-white rounded-xl py-3 font-semibold disabled:opacity-50">
+                {writing ? "Menunggu NFC..." : "Tulis NFC"}
+              </button>
+              <button type="button" onClick={copyNfcUrl}
+                className="w-full bg-white border border-gray-300 rounded-xl py-3 font-semibold">
+                Salin URL NFC
+              </button>
+              <p className="text-xs text-gray-600">Penulisan NFC langsung didukung Chrome Android dengan NFC aktif dan tag writable. Pada komputer/iPhone, salin URL ke aplikasi NFC Tools.</p>
+              {toolMessage && <p role="status" className="rounded-xl bg-white p-3 text-xs">{toolMessage}</p>}
+            </div>
             <div className="mt-5 bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-800">
               Simpan PIN ini. PIN asli tidak disimpan
               di database dan sebaiknya langsung dicetak
