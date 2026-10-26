@@ -1,31 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { hashActivationPin } from "@/lib/pin";
+import { checkV1RateLimit } from "@/lib/v1-rate-limit";
+import { hashActivationPin, generateActivationPin } from "@/lib/pin";
+import { randomInt } from "node:crypto";
 
 export const dynamic = "force-dynamic";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const adminKey = process.env.ADMIN_KEY!;
+const adminKey = process.env.ADMIN_KEY;
 
-const supabase = createClient(
-  supabaseUrl,
-  supabaseServiceRoleKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("Supabase server environment is not configured.");
   }
-);
-
-function generateCardCode() {
-  const number = Math.floor(10000 + Math.random() * 90000);
-  return `ULAS-${number}`;
+  return createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 }
 
-function generateActivationPin() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+function generateCardCode() {
+  const number = randomInt(10000, 100000);
+  return `ULAS-${number}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -34,6 +30,11 @@ export async function POST(request: NextRequest) {
 
     const receivedAdminKey = String(body.admin_key ?? "").trim();
     const cardCodeInput = String(body.card_code ?? "").trim().toUpperCase();
+
+    const supabase = getSupabase();
+    if (!(await checkV1RateLimit(supabase, request, "create"))) {
+      return NextResponse.json({success:false,message:"Terlalu banyak percobaan atau keamanan sementara tidak tersedia."},{status:429,headers:{"Retry-After":"900"}});
+    }
 
     if (!adminKey) {
       return NextResponse.json(
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
 
     let cardCode = cardCodeInput;
 
@@ -131,8 +133,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: error.message,
-          error: error,
+          message: "Kartu gagal dibuat. Hubungi administrator.",
         },
         { status: 500 }
       );

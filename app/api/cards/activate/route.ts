@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { verifyActivationPin } from "@/lib/pin";
 
 export const dynamic = "force-dynamic";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY!;
-
-const supabase = createClient(
-  supabaseUrl,
-  supabaseServiceRoleKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
+/**
+ * Create Supabase client only when the API request executes.
+ * Preview builds can collect route metadata without connecting to Supabase.
+ */
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("Supabase server environment is not configured.");
   }
-);
+  return createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
 
 type ActivateRequest = {
   card_code?: string;
@@ -60,110 +61,52 @@ function isValidGoogleMapsUrl(value: string) {
   }
 }
 
-async function extractPlaceIdFromGoogleMapsUrl(
-  googleMapsUrl: string,
-  businessName: string
-) {
-  /*
-   * 1. Resolve Google Maps URL
-   */
-  const response = await fetch(googleMapsUrl, {
-    method: "GET",
-    redirect: "follow",
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (compatible; GoogleMapsPlaceResolver/1.0)",
-    },
-  });
-
-  const finalUrl = response.url;
-
-  /*
-   * 2. Coba ambil Place ID dari URL
-   */
-  try {
-    const parsedUrl = new URL(finalUrl);
-
-    const placeId =
-      parsedUrl.searchParams.get("placeid") ||
-      parsedUrl.searchParams.get("place_id");
-
-    if (placeId) {
-      return placeId;
-    }
-  } catch {
-    // lanjut ke Google Places API
+/**
+ * Resolve an explicit Google Place ID from the supplied link.
+ * NEVER guess the destination from a name-only Places text search.
+ * A business with a similar name can be in another country.
+ */
+async function extractPlaceIdFromGoogleMapsUrl(googleMapsUrl: string) {
+  const inputUrl = new URL(googleMapsUrl);
+  // Accept only an explicit Google review composer URL. Never follow arbitrary
+  // HTTP redirects from untrusted links or infer the business from name search.
+  if (inputUrl.protocol !== "https:" ||
+      inputUrl.hostname !== "search.google.com" ||
+      inputUrl.pathname !== "/local/writereview" ||
+      inputUrl.username || inputUrl.password) {
+    throw new Error("Gunakan link Tulis Ulasan resmi dari Google Business Profile, bukan link Maps pendek.");
   }
-
-  /*
-   * 3. Fallback ke Google Places API
-   */
-  if (!googleMapsApiKey) {
-    throw new Error("GOOGLE_MAPS_API_KEY belum tersedia.");
+  const placeId = inputUrl.searchParams.get("placeid");
+  if (!placeId || !/^[-_A-Za-z0-9]+$/.test(placeId)) {
+    throw new Error("Link harus berisi Place ID Google yang valid.");
   }
-
-  const placesResponse = await fetch(
-    "https://places.googleapis.com/v1/places:searchText",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": googleMapsApiKey,
-        "X-Goog-FieldMask": "places.id,places.displayName",
-      },
-      body: JSON.stringify({
-        textQuery: businessName,
-        languageCode: "id",
-      }),
-    }
-  );
-
-  if (!placesResponse.ok) {
-    const errorText = await placesResponse.text();
-
-    console.error("GOOGLE_PLACES_ERROR", errorText);
-
-    throw new Error("Gagal mencari Place ID Google Maps.");
-  }
-
-  const placesData = await placesResponse.json();
-
-  const place = placesData?.places?.[0];
-
-  if (!place?.id) {
-    throw new Error(
-      "Place ID tidak ditemukan. Pastikan nama bisnis sesuai dengan Google Maps."
-    );
-  }
-
-  return place.id;
+  return placeId;
 }
+
 function isValidGoogleReviewUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    
-    return (
-      url.protocol === "https:" &&
-      (
-        url.hostname === "google.com" ||
-        url.hostname.endsWith(".google.com") ||
-        url.hostname === "maps.google.com" ||
-        url.hostname === "maps.app.goo.gl"
-      )
-    );
-  } catch {
-    return false;
-  }
+    return url.protocol === "https:" &&
+      url.hostname === "search.google.com" &&
+      url.pathname === "/local/writereview" &&
+      !url.username && !url.password &&
+      /^[-_A-Za-z0-9]+$/.test(url.searchParams.get("placeid") ?? "");
+  } catch { return false; }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as ActivateRequest;
+    const supabase = getSupabase();
 
     const cardCode = normalizeCardCode(body.card_code ?? "");
     const activationPin = normalizePin(body.activation_pin ?? "");
     const businessName = normalizeBusinessName(body.business_name ?? "");
     const googleMapsUrl = (body.google_review_url ?? "").trim();
+
+    if (!(await checkV1RateLimit(supabase, request, "activate", cardCode))) {
+      return NextResponse.json({success:false,message:"Terlalu banyak percobaan atau keamanan sementara tidak tersedia."},{status:429,headers:{"Retry-After":"900"}});
+    }
 
     /*
      * ================================
@@ -334,10 +277,7 @@ export async function POST(request: NextRequest) {
 let placeId: string;
 
 try {
-  placeId = await extractPlaceIdFromGoogleMapsUrl(
-    googleMapsUrl,
-    businessName
-  );
+  placeId = await extractPlaceIdFromGoogleMapsUrl(googleMapsUrl);
 } catch (error) {
   console.error("PLACE_ID_EXTRACTION_ERROR", error);
 
