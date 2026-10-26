@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { verifyActivationPin } from "@/lib/pin";
-import { resolveV1GooglePlaceId } from "@/lib/v1-google-maps";
+import { resolveV1GooglePlaceId, suggestV1GooglePlace } from "@/lib/v1-google-maps";
 
 export const dynamic = "force-dynamic";
 
@@ -226,6 +226,21 @@ let placeId: string;
 try {
   placeId = await resolveV1GooglePlaceId(googleMapsUrl);
 } catch (error) {
+  // The Maps link may identify a place by a readable name, not a Place ID.
+  // Never use the first Places match without showing it to the user first.
+  try {
+    const suggestion = await suggestV1GooglePlace(googleMapsUrl);
+    if (suggestion) {
+      return NextResponse.json({
+        success: false,
+        code: "CONFIRM_GOOGLE_PLACE",
+        message: "Periksa nama dan alamat bisnis sebelum aktivasi.",
+        candidate: suggestion,
+      }, { status: 422 });
+    }
+  } catch (lookupError) {
+    console.error("V1_PLACE_SUGGESTION_ERROR", lookupError);
+  }
   console.error("PLACE_ID_EXTRACTION_ERROR", error);
 
   return NextResponse.json(
