@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { verifyActivationPin } from "@/lib/pin";
+import { resolveV1GooglePlaceId } from "@/lib/v1-google-maps";
 
 export const dynamic = "force-dynamic";
 
@@ -39,60 +40,6 @@ function normalizeBusinessName(value: string) {
   return value.trim();
 }
 
-function normalizeGoogleMapsUrl(value: string) {
-  return value.trim();
-}
-
-function isValidGoogleMapsUrl(value: string) {
-  try {
-    const url = new URL(value);
-
-    return (
-      url.protocol === "https:" &&
-      (
-        url.hostname === "google.com" ||
-        url.hostname.endsWith(".google.com") ||
-        url.hostname === "maps.google.com" ||
-        url.hostname === "maps.app.goo.gl"
-      )
-    );
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Resolve an explicit Google Place ID from the supplied link.
- * NEVER guess the destination from a name-only Places text search.
- * A business with a similar name can be in another country.
- */
-async function extractPlaceIdFromGoogleMapsUrl(googleMapsUrl: string) {
-  const inputUrl = new URL(googleMapsUrl);
-  // Accept only an explicit Google review composer URL. Never follow arbitrary
-  // HTTP redirects from untrusted links or infer the business from name search.
-  if (inputUrl.protocol !== "https:" ||
-      inputUrl.hostname !== "search.google.com" ||
-      inputUrl.pathname !== "/local/writereview" ||
-      inputUrl.username || inputUrl.password) {
-    throw new Error("Gunakan link Tulis Ulasan resmi dari Google Business Profile, bukan link Maps pendek.");
-  }
-  const placeId = inputUrl.searchParams.get("placeid");
-  if (!placeId || !/^[-_A-Za-z0-9]+$/.test(placeId)) {
-    throw new Error("Link harus berisi Place ID Google yang valid.");
-  }
-  return placeId;
-}
-
-function isValidGoogleReviewUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" &&
-      url.hostname === "search.google.com" &&
-      url.pathname === "/local/writereview" &&
-      !url.username && !url.password &&
-      /^[-_A-Za-z0-9]+$/.test(url.searchParams.get("placeid") ?? "");
-  } catch { return false; }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -164,7 +111,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!isValidGoogleReviewUrl(googleMapsUrl)) {
+    if (!/^https:\/\//i.test(googleMapsUrl)) {
       return NextResponse.json(
         {
           success: false,
@@ -277,7 +224,7 @@ export async function POST(request: NextRequest) {
 let placeId: string;
 
 try {
-  placeId = await extractPlaceIdFromGoogleMapsUrl(googleMapsUrl);
+  placeId = await resolveV1GooglePlaceId(googleMapsUrl);
 } catch (error) {
   console.error("PLACE_ID_EXTRACTION_ERROR", error);
 

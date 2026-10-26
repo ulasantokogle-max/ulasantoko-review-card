@@ -167,7 +167,7 @@ export default function ActivationForm() {
       {/* GOOGLE MAPS */}
       <label className="block">
         <span className="text-sm font-semibold">
-          Link Tulis Ulasan Google
+          Link Google Maps Bisnis
         </span>
 
         <input
@@ -177,7 +177,7 @@ export default function ActivationForm() {
           onChange={(e) =>
             setReviewUrl(e.target.value)
           }
-          placeholder="https://search.google.com/local/writereview?placeid=..."
+          placeholder="https://maps.app.goo.gl/... atau link Tulis Ulasan"
           className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"
         />
 
