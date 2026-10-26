@@ -123,6 +123,7 @@ setCardCode("");
             ULASANTOKO
           </p>
 
+          <a href="/admin/provider" className="text-sm text-blue-700 underline">Login Provider / Kelola QR & NFC lama</a>
           <h1 className="text-2xl font-bold mt-1">
             Create Card
           </h1>
