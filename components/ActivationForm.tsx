@@ -67,9 +67,8 @@ export default function ActivationForm() {
           card_code: normalizedCardCode,
           activation_pin: normalizedPin,
           business_name: businessName.trim(),
-          google_review_url: candidate
-            ? "https://search.google.com/local/writereview?placeid=" + encodeURIComponent(candidate.placeId)
-            : reviewUrl.trim(),
+          google_review_url: reviewUrl.trim(),
+          confirmed_place_id: candidate?.placeId,
         }),
       });
 
@@ -192,8 +191,7 @@ export default function ActivationForm() {
         />
 
         <p className="mt-2 text-xs text-gray-500">
-          Masukkan link Tulis Ulasan bisnis Anda.
-          Untuk mencegah salah lokasi, gunakan link Tulis Ulasan dari Google Business Profile yang memuat Place ID.
+          Masukkan link Google Maps bisnis Anda. Jika sistem menemukan kemungkinan lokasi, pastikan nama dan alamatnya sebelum aktivasi.
         </p>
       </label>
 
