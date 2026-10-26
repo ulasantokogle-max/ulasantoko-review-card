@@ -54,7 +54,7 @@ export async function resolveV1GooglePlaceId(value: string): Promise<string> {
 export async function suggestV1GooglePlace(value: string): Promise<{
   placeId: string; name: string; address: string;
 } | null> {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  const apiKey = process.env.V1_GOOGLE_PLACES_API_KEY;
   if (!apiKey) return null;
   let url: URL;
   try { url = new URL(value); } catch { return null; }
