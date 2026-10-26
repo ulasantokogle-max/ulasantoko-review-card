@@ -17,6 +17,7 @@ export default function ActivationForm() {
   const [activationPin, setActivationPin] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [reviewUrl, setReviewUrl] = useState("");
+  const [candidate, setCandidate] = useState<{ placeId: string; name: string; address: string } | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -67,10 +68,17 @@ export default function ActivationForm() {
           activation_pin: normalizedPin,
           business_name: businessName.trim(),
           google_review_url: reviewUrl.trim(),
+          confirmed_place_id: candidate?.placeId,
         }),
       });
 
       const data = await res.json();
+
+      if (data.code === "CONFIRM_GOOGLE_PLACE" && data.candidate) {
+        setCandidate(data.candidate);
+        setMessage("Pastikan nama dan alamat di bawah benar. Klik Konfirmasi & Aktifkan untuk melanjutkan.");
+        return;
+      }
 
       if (!res.ok) {
         throw new Error(
@@ -174,18 +182,29 @@ export default function ActivationForm() {
           required
           type="url"
           value={reviewUrl}
-          onChange={(e) =>
-            setReviewUrl(e.target.value)
-          }
+          onChange={(e) => {
+            setReviewUrl(e.target.value);
+            setCandidate(null);
+          }}
           placeholder="https://maps.app.goo.gl/... atau link Tulis Ulasan"
           className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"
         />
 
         <p className="mt-2 text-xs text-gray-500">
-          Masukkan link Tulis Ulasan bisnis Anda.
-          Untuk mencegah salah lokasi, gunakan link Tulis Ulasan dari Google Business Profile yang memuat Place ID.
+          Masukkan link Google Maps bisnis Anda. Jika sistem menemukan kemungkinan lokasi, pastikan nama dan alamatnya sebelum aktivasi.
         </p>
       </label>
+
+      {candidate && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950" role="status">
+          <p className="font-bold">Apakah ini bisnis Anda?</p>
+          <p className="mt-2 font-semibold">{candidate.name}</p>
+          <p className="mt-1">{candidate.address}</p>
+          <p className="mt-2 text-xs">Jika berbeda, jangan aktifkan. Ganti link Maps dengan lokasi yang benar.</p>
+          <button type="button" onClick={() => { setCandidate(null); setMessage(""); }}
+            className="mt-3 underline">Bukan bisnis saya</button>
+        </div>
+      )}
 
       {/* MESSAGE */}
       {message && (
@@ -202,7 +221,7 @@ export default function ActivationForm() {
       >
         {loading
           ? "Memproses..."
-          : "Aktifkan Kartu"}
+          : candidate ? "Konfirmasi & Aktifkan Kartu" : "Aktifkan Kartu"}
       </button>
     </form>
   );
