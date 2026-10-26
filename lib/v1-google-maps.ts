@@ -49,7 +49,7 @@ export async function resolveV1GooglePlaceId(value: string): Promise<string> {
 /**
  * Optional V1 fallback for Google Maps share links without an explicit Place ID.
  * Returns a candidate for HUMAN confirmation, NEVER silently activates a card.
- * Places API (New) must be enabled for GOOGLE_MAPS_API_KEY in Vercel.
+ * Places API (New) must be enabled for V1_GOOGLE_PLACES_API_KEY in Vercel.
  */
 export async function suggestV1GooglePlace(value: string): Promise<{
   placeId: string; name: string; address: string;
@@ -68,33 +68,60 @@ export async function suggestV1GooglePlace(value: string): Promise<{
     url = new URL(target, url);
     if (!validGoogleUrl(url)) return null;
   }
-  // Only use the place name encoded in a Google Maps /place/ URL.
-  // Do not guess based solely on user-entered business name.
+  // Require coordinates belonging to the actual place marker; text search by
+  // business name alone can accidentally select a similarly named branch.
   const match = url.pathname.match(/\/maps\/place\/([^/]+)/) ||
     url.pathname.match(/^\/place\/([^/]+)/);
   if (!match) return null;
-  const query = decodeURIComponent(match[1]).replace(/\+/g, " ").trim();
+  let query: string;
+  try { query = decodeURIComponent(match[1]).replace(/\+/g, " ").trim(); }
+  catch { return null; }
   if (!query || query.length < 4 || query.length > 180) return null;
+  const rawUrl = decodeURIComponent(url.toString());
+  const coordinates = rawUrl.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/);
+  if (!coordinates) return null;
+  const lat = Number(coordinates[1]);
+  const lng = Number(coordinates[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+      Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+
   const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
       "Content-Type": "application/json", "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress",
+      "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location",
     },
-    body: JSON.stringify({ textQuery: query, maxResultCount: 1 }),
+    body: JSON.stringify({
+      textQuery: query,
+      maxResultCount: 10,
+      locationBias: { circle: { center: { latitude: lat, longitude: lng }, radius: 500 } },
+    }),
     signal: AbortSignal.timeout(7000),
     cache: "no-store",
   });
   if (!response.ok) return null;
-  const data = await response.json() as {
-    places?: { id?: string; displayName?: { text?: string }; formattedAddress?: string }[];
+  const data = await response.json() as { places?: {
+    id?: string; displayName?: { text?: string }; formattedAddress?: string;
+    location?: { latitude?: number; longitude?: number };
+  }[] };
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const distance = (a: number, b: number) => {
+    const dLat = radians(a - lat);
+    const dLng = radians(b - lng);
+    const x = Math.sin(dLat / 2) ** 2 +
+      Math.cos(radians(lat)) * Math.cos(radians(a)) * Math.sin(dLng / 2) ** 2;
+    return 6371000 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
   };
-  const place = data.places?.[0];
-  if (!place?.id || !/^ChIJ[-_A-Za-z0-9]+$/.test(place.id) ||
-    !place.displayName?.text || !place.formattedAddress) return null;
-  return {
-    placeId: place.id,
-    name: place.displayName.text,
-    address: place.formattedAddress,
-  };
+  const candidates = (data.places ?? [])
+    .filter(p => p.id && /^ChIJ[-_A-Za-z0-9]+$/.test(p.id) &&
+      p.displayName?.text && p.formattedAddress &&
+      p.location?.latitude != null && p.location?.longitude != null)
+    .map(p => ({ p, meters: distance(p.location!.latitude!, p.location!.longitude!) }))
+    .sort((a, b) => a.meters - b.meters);
+  // Return only an unambiguous nearby result for explicit human confirmation.
+  const first = candidates[0];
+  if (!first || first.meters > 100 ||
+      (candidates[1] && candidates[1].meters < 100)) return null;
+  return { placeId: first.p.id!, name: first.p.displayName!.text!,
+    address: first.p.formattedAddress! };
 }
