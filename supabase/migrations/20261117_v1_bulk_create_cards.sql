@@ -13,7 +13,7 @@ DECLARE
   v_hash text;
   v_code text;
 BEGIN
-  IF auth.role() IS DISTINCT FROM 'service_role' THEN
+  IF current_user <> 'service_role' THEN
     RAISE EXCEPTION 'Not authorized';
   END IF;
 
