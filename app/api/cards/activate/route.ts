@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { v1SupabaseServer } from "@/lib/v1-supabase";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { verifyActivationPin } from "@/lib/pin";
 import { resolveV1GooglePlaceId, suggestV1GooglePlace } from "@/lib/v1-google-maps";
@@ -10,17 +10,6 @@ export const dynamic = "force-dynamic";
  * Create Supabase client only when the API request executes.
  * Preview builds can collect route metadata without connecting to Supabase.
  */
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error("Supabase server environment is not configured.");
-  }
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
-
 type ActivateRequest = {
   card_code?: string;
   activation_pin?: string;
@@ -45,7 +34,7 @@ function normalizeBusinessName(value: string) {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as ActivateRequest;
-    const supabase = getSupabase();
+    const supabase = v1SupabaseServer();
 
     const cardCode = normalizeCardCode(body.card_code ?? "");
     const activationPin = normalizePin(body.activation_pin ?? "");
