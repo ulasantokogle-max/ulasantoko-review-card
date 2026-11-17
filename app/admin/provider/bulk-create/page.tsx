@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 
 type CreatedCard = { card_code: string; activation_pin: string; url: string };
+type Readiness = { ready: boolean; mode: string; reason: string; cardCount?: number };
 export default function BulkCreateV1Page() {
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -10,12 +11,27 @@ export default function BulkCreateV1Page() {
   const [busy, setBusy] = useState(false);
   const [csvSaved, setCsvSaved] = useState(false);
   const [message, setMessage] = useState("");
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
 
   useEffect(() => {
     fetch("/api/v1/provider/session", { cache: "no-store" })
       .then(r => r.json()).then(d => setAuthenticated(d.authenticated === true))
       .catch(() => setAuthenticated(false)).finally(() => setChecking(false));
   }, []);
+
+  useEffect(() => {
+    if (!authenticated) return;
+    fetch("/api/v1/provider/status", { cache: "no-store" })
+      .then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.reason || "Gagal memeriksa database V1.");
+        setReadiness(data as Readiness);
+      })
+      .catch(e => setReadiness({
+        ready: false, mode: "unknown",
+        reason: e instanceof Error ? e.message : "Database V1 belum dapat diperiksa.",
+      }));
+  }, [authenticated]);
 
   useEffect(() => {
     if (!cards.length || csvSaved) return;
@@ -25,6 +41,10 @@ export default function BulkCreateV1Page() {
   }, [cards.length, csvSaved]);
 
   async function create() {
+    if (readiness?.ready !== true) {
+      setMessage("Bulk Create belum diizinkan: " + (readiness?.reason || "Pemeriksaan database belum selesai."));
+      return;
+    }
     if (cards.length > 0 && !csvSaved) {
       setMessage("Download CSV dan PIN dari batch sebelumnya sebelum membuat kartu baru.");
       return;
@@ -62,10 +82,15 @@ export default function BulkCreateV1Page() {
       {checking ? <p className="mt-6">Memeriksa sesi Provider...</p>
         : !authenticated ? <p className="mt-6">Silakan <a className="text-blue-700 underline" href="/admin/provider">login Provider V1</a> terlebih dahulu.</p>
         : <>
+          <section aria-live="polite" className="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-sm font-semibold">Kesiapan Database V1: {readiness === null ? "Memeriksa..." : readiness.ready ? "Siap" : "Belum siap"}</p>
+            <p className="mt-1 text-sm text-gray-600">{readiness?.reason || "Memeriksa koneksi database khusus V1 dan status pemulihan kartu."}</p>
+            {typeof readiness?.cardCount === "number" && <p className="mt-1 text-xs text-gray-500">Jumlah kartu terdaftar: {readiness.cardCount}</p>}
+          </section>
           <label className="mt-6 block text-sm font-semibold" htmlFor="count">Jumlah kartu (1–100)</label>
           <input id="count" className="my-3 block w-40 rounded-xl border p-3" type="number"
             min={1} max={100} value={count} onChange={e => setCount(Number(e.target.value))}/>
-          <button onClick={create} disabled={busy || !Number.isInteger(count) || count < 1 || count > 100}
+          <button onClick={create} disabled={busy || readiness?.ready !== true || !Number.isInteger(count) || count < 1 || count > 100}
             className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white disabled:opacity-50">
             {busy ? "Membuat..." : "Buat Kartu Massal"}
           </button>
