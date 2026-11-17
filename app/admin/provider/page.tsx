@@ -98,8 +98,10 @@ export default function ProviderToolsPage() {
           <button disabled={busy} className="w-full rounded-xl bg-black p-3 font-semibold text-white">Masuk Provider</button>
         </form> :
         <div className="mt-6 space-y-5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <a className="text-sm text-blue-700 underline" href="/admin/cards">Buat kartu baru</a>
+            <a className="text-sm text-blue-700 underline" href="/admin/provider/bulk-create">Bulk Create</a>
+            <a className="text-sm text-blue-700 underline" href="/admin/provider/bulk-designer">Bulk Designer</a>
             <button type="button" className="text-sm underline" onClick={logout}>Keluar</button>
           </div>
           <form onSubmit={findCard} className="space-y-3">
