@@ -41,6 +41,7 @@ export default function BulkDesignerV1Page() {
   const [cards, setCards] = useState<Card[]>([]);
   const [mode, setMode] = useState("rainbow");
   const [doubleSided, setDoubleSided] = useState(true);
+  const [duplexFlip, setDuplexFlip] = useState<"long" | "short">("long");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -83,11 +84,24 @@ export default function BulkDesignerV1Page() {
       };
       let sheets = "";
       for (let i = 0; i < cards.length; i += 6) {
-        const slice = cards.slice(i,i+6);
-        sheets += '<section class="sheet">' + slice.map((c,j)=>render(c,images[i+j],false)).join("") + '</section>';
+        // Keep all 6 slots so partial pages also register correctly on the back.
+        const slots = Array.from({ length: 6 }, (_, j) => cards[i+j] ?? null);
+        const renderSlot = (index: number, back: boolean) => {
+          const c = slots[index];
+          return c ? render(c, images[i+index], back)
+            : '<article class="card empty"></article>';
+        };
+        sheets += '<section class="sheet">' +
+          slots.map((_, j) => renderSlot(j, false)).join("") +
+          '</section>';
         if (doubleSided) {
-          // Back pages follow their front sheet, with corresponding QR/NFC swapped.
-          sheets += '<section class="sheet back">' + slice.map((c,j)=>render(c,images[i+j],true)).join("") + '</section>';
+          const mirror = (j: number) => {
+            const row = Math.floor(j / 3), col = j % 3;
+            return duplexFlip === "long" ? (1-row)*3+col : row*3+(2-col);
+          };
+          sheets += '<section class="sheet back">' +
+            slots.map((_, j) => renderSlot(mirror(j), true)).join("") +
+            '</section>';
         }
       }
       const css = '@page{size:A3 landscape;margin:8mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#14345e;background:white}.sheet{width:100%;display:grid;grid-template-columns:repeat(3,100mm);grid-template-rows:repeat(2,100mm);gap:3mm;justify-content:center;break-after:page;page-break-after:always}.card{height:100mm;width:100mm;border:0.25mm solid #d4dce5;padding:7mm;position:relative;overflow:hidden;break-inside:avoid}.card header{display:flex;align-items:center;justify-content:space-between;font-size:10pt}.card header span{font-size:6pt;letter-spacing:0.7pt}.card h2{font-size:14pt;text-align:center;margin:9mm 0 5mm}.middle{display:flex;align-items:center;justify-content:space-around;height:45mm}.qr{height:39mm;width:39mm;image-rendering:auto}.nfc{text-align:center;width:33mm}.waves{font-size:25pt;display:block}.nfc strong{font-size:10pt}.card p{font-size:10pt;text-align:center;margin:3mm 0}.card small{position:absolute;right:7mm;bottom:5mm;font-size:7pt}.back .card{border-style:dashed}.sheet:last-child{break-after:auto;page-break-after:auto}@media screen{body{padding:10mm;background:#eee}.sheet{background:white;margin:0 auto 10mm;max-width:404mm;min-height:280mm;padding-top:4mm;box-shadow:0 1px 8px #ddd}}';
@@ -121,6 +135,16 @@ export default function BulkDesignerV1Page() {
             <input type="checkbox" checked={doubleSided} onChange={e=>setDoubleSided(e.target.checked)}/>
             Dua sisi (QR dan NFC bertukar posisi di belakang)
           </label>
+          {doubleSided && <>
+            <label htmlFor="duplex" className="block text-sm font-semibold">Arah balik kertas untuk sisi belakang</label>
+            <select id="duplex" value={duplexFlip}
+              onChange={e=>setDuplexFlip(e.target.value as "long"|"short")}
+              className="my-2 rounded-xl border p-3">
+              <option value="long">Balik sisi panjang (long edge)</option>
+              <option value="short">Balik sisi pendek (short edge)</option>
+            </select>
+            <p className="mb-3 text-xs text-gray-600">Wajib uji 1 lembar dan cocokkan QR/NFC kedua sisi dengan kode kartu yang sama sebelum cetak massal.</p>
+          </>}
           <p className="mb-4 text-sm text-gray-600">{cards.length} kartu siap didesain.</p>
           <button disabled={!cards.length || busy} onClick={printCards}
             className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white disabled:opacity-50">
