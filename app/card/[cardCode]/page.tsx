@@ -1,8 +1,8 @@
 import {notFound} from "next/navigation";
-import {supabaseServer} from "@/lib/supabase";
+import {v1SupabaseServer} from "@/lib/v1-supabase";
 export default async function CardPage({params}:{params:Promise<{cardCode:string}>}){
   const {cardCode}=await params; const code=decodeURIComponent(cardCode);
-  const {data:card}=await supabaseServer().from("cards").select("*").eq("card_code",code).maybeSingle();
+  const {data:card}=await v1SupabaseServer().from("cards").select("*").eq("card_code",code).maybeSingle();
   if(!card) notFound();
   if(card.status!=="active") return <main className="min-h-screen flex items-center justify-center px-5"><section className="w-full max-w-md rounded-3xl bg-white p-7 text-center shadow-sm"><h1 className="text-2xl font-bold">Kartu belum aktif</h1><p className="mt-3 text-gray-600">Silakan aktivasi kartu terlebih dahulu.</p></section></main>;
   return <main className="min-h-screen flex items-center justify-center px-5"><section className="w-full max-w-md rounded-3xl bg-white p-7 text-center shadow-sm border border-gray-100">
