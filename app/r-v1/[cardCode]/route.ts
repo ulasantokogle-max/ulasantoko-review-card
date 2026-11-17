@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase";
+import { v1SupabaseServer } from "@/lib/v1-supabase";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -43,7 +43,7 @@ export async function GET(
   }
 
   try {
-    const { data: card, error } = await supabaseServer()
+    const { data: card, error } = await v1SupabaseServer()
       .from("cards")
       .select("status, google_review_url")
       .eq("card_code", code)
