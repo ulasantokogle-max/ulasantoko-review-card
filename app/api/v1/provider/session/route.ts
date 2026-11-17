@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { supabaseServer } from "@/lib/supabase";
+import { v1SupabaseServer } from "@/lib/v1-supabase";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { PROVIDER_COOKIE, createProviderSession, isProviderAuthenticated, providerCookieOptions } from "@/lib/v1-provider-auth";
 
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Reuse persistent fail-closed create throttling; do not log passwords.
-    if (!await checkV1RateLimit(supabaseServer(), request, "create")) {
+    if (!await checkV1RateLimit(v1SupabaseServer(), request, "create")) {
       return NextResponse.json({ message: "Terlalu banyak percobaan. Coba nanti." }, { status: 429, headers: noStore });
     }
     const body = await request.json();
