@@ -11,11 +11,11 @@ Scope: **UlasanToko V1 only**. Do not merge or deploy to V3, WiV1, or shared dom
 ## Blockers / safety gates
 1. **Supabase V1 (ulasantoko-review) is INACTIVE**. Restoring was denied by Supabase free plan's two-active-project quota. Do not pause V3 or WiV1. Upgrade quota or obtain a dedicated V1 project and validated migration/data restoration before production.
 2. V1's Vercel project is not visible in the connected Vercel account, so production deployment cannot be verified here.
-3. Backup V1 cards, verify deployed environment points to the correct V1 database, then apply SQL **only** on the V1 database. This migration is not yet applied.
-4. Build `npm ci && npm run build` in V1 repository and perform independent tests.
+3. Backup V1 cards, verify deployed environment points to the correct V1 database, run read-only `supabase/v1_bulk_create_preflight_readonly.sql` and review its results. Only then apply the migration **on V1**. This migration is not yet applied.
+4. Confirm clean Next.js build in V1 preview and perform independent tests. This repository currently has no `package-lock.json` in its default branch, so `npm ci` is not appropriate until the lockfile is established.
 5. Confirm V1 Provider login and session, create 1-card test batch, create 10-card test batch, verify sequential unique codes and one-time PINs, then check activation/r-v1 route and existing cards.
 6. Validate QR images with multiple phones/Google Lens; verify that the rainbow palette remains readable.
-7. Confirm A3 front/back print registration with the actual printer/paper orientation; use a pilot print before bulk production. PDF comes from browser Print > Save as PDF (not a server-generated PDF).
+7. Confirm A3 front/back print registration with actual printer/paper orientation; use a pilot print before bulk production. PDF comes from browser Print > Save as PDF (not a server-generated PDF). The layout is only a production candidate until physical print registration is verified.
 8. Deploy only this V1 project, confirm domain `app.ulasantoko.space`, and monitor logs. Do not change `ulasantoko.space` Short.io mappings in bulk.
 
 ## Important
