@@ -30,4 +30,4 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Verify V1-only CSV safety and duplicate rejection
-        run: node --test tests/v1-bulk-csv.test.cjs tests/v1-migration-gate.test.cjs tests/v1-public-card.test.cjs
+        run: node --test tests/v1-bulk-csv.test.cjs tests/v1-migration-gate.test.cjs tests/v1-public-card.test.cjs tests/v1-project-guard.test.cjs
