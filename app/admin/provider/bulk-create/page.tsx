@@ -8,6 +8,7 @@ export default function BulkCreateV1Page() {
   const [count, setCount] = useState(10);
   const [cards, setCards] = useState<CreatedCard[]>([]);
   const [busy, setBusy] = useState(false);
+  const [csvSaved, setCsvSaved] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -16,9 +17,20 @@ export default function BulkCreateV1Page() {
       .catch(() => setAuthenticated(false)).finally(() => setChecking(false));
   }, []);
 
+  useEffect(() => {
+    if (!cards.length || csvSaved) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [cards.length, csvSaved]);
+
   async function create() {
+    if (cards.length > 0 && !csvSaved) {
+      setMessage("Download CSV dan PIN dari batch sebelumnya sebelum membuat kartu baru.");
+      return;
+    }
     if (!window.confirm("Buat " + count + " kartu V1 baru? PIN hanya terlihat sekali. Simpan hasil CSV.")) return;
-    setCards([]); setMessage(""); setBusy(true);
+    setCards([]); setCsvSaved(false); setMessage(""); setBusy(true);
     try {
       const res = await fetch("/api/v1/provider/bulk-create", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -40,6 +52,7 @@ export default function BulkCreateV1Page() {
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob); link.download = "V1-Bulk-Kartu.csv"; link.click();
     URL.revokeObjectURL(link.href);
+    setCsvSaved(true);
   }
   return <main className="min-h-screen bg-gray-50 px-5 py-10">
     <section className="mx-auto max-w-3xl rounded-3xl border bg-white p-7 shadow-sm">
@@ -61,7 +74,7 @@ export default function BulkCreateV1Page() {
             <button onClick={download} className="rounded-xl bg-green-700 px-5 py-3 font-semibold text-white">
               Download CSV + PIN
             </button>
-            <p className="mt-3 text-sm">{cards.length} kartu baru berhasil dibuat. Simpan file CSV secara aman.</p>
+            <p className="mt-3 text-sm">{cards.length} kartu baru berhasil dibuat. Simpan file CSV secara aman. {csvSaved ? "CSV telah diminta untuk diunduh." : "Jangan tutup halaman sebelum mengunduh CSV."}</p>
             <div className="mt-3 max-h-72 overflow-auto">
               <table className="w-full text-left text-sm"><thead><tr><th>Kode</th><th>PIN</th></tr></thead>
                 <tbody>{cards.map(c => <tr className="border-t" key={c.card_code}>
