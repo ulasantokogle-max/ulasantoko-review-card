@@ -12,7 +12,7 @@ async function qrImage(url: string, mode: string) {
   const canvas = document.createElement("canvas");
   await QRCode.toCanvas(canvas, url, {
     width: 480, margin: 4, errorCorrectionLevel: "H",
-    color: { dark: mode === "blue" ? "#123b78" : "#172f55", light: "#ffffff" },
+    color: { dark: mode === "blue" ? "#123b78" : mode === "black" ? "#000000" : "#172f55", light: "#ffffff" },
   });
   if (mode === "rainbow") {
     const ctx = canvas.getContext("2d");
@@ -53,6 +53,7 @@ export default function BulkDesignerV1Page() {
   async function loadCsv(file: File) {
     try {
       const text = (await file.text()).replace(/^\ufeff/, "");
+      if (file.size > 1_000_000) throw new Error("CSV terlalu besar (maksimal 1 MB).");
       const lines = text.split(/\r?\n/);
       const codes = Array.from(new Set(lines
         .map(row => row.match(/ULAS-\d{5,}/i)?.[0].toUpperCase())
@@ -89,7 +90,7 @@ export default function BulkDesignerV1Page() {
           sheets += '<section class="sheet back">' + slice.map((c,j)=>render(c,images[i+j],true)).join("") + '</section>';
         }
       }
-      const css = '@page{size:A3 landscape;margin:8mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#14345e;background:white}.sheet{width:100%;display:grid;grid-template-columns:repeat(3,100mm);grid-template-rows:repeat(2,100mm);gap:3mm;justify-content:center;break-after:page;page-break-after:always}.card{height:100mm;width:100mm;border:0.25mm solid #d4dce5;padding:7mm;position:relative;overflow:hidden;break-inside:avoid}.card header{display:flex;align-items:center;justify-content:space-between;font-size:10pt}.card header span{font-size:6pt;letter-spacing:0.7pt}.card h2{font-size:14pt;text-align:center;margin:9mm 0 5mm}.middle{display:flex;align-items:center;justify-content:space-around;height:45mm}.qr{height:39mm;width:39mm;image-rendering:auto}.nfc{text-align:center;width:33mm}.waves{font-size:25pt;display:block}.nfc strong{font-size:10pt}.card p{font-size:10pt;text-align:center;margin:3mm 0}.card small{position:absolute;right:7mm;bottom:5mm;font-size:7pt}.back .card{border-style:dashed}@media screen{body{padding:10mm;background:#eee}.sheet{background:white;margin:0 auto 10mm;max-width:404mm;min-height:280mm;padding-top:4mm;box-shadow:0 1px 8px #ddd}}';
+      const css = '@page{size:A3 landscape;margin:8mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#14345e;background:white}.sheet{width:100%;display:grid;grid-template-columns:repeat(3,100mm);grid-template-rows:repeat(2,100mm);gap:3mm;justify-content:center;break-after:page;page-break-after:always}.card{height:100mm;width:100mm;border:0.25mm solid #d4dce5;padding:7mm;position:relative;overflow:hidden;break-inside:avoid}.card header{display:flex;align-items:center;justify-content:space-between;font-size:10pt}.card header span{font-size:6pt;letter-spacing:0.7pt}.card h2{font-size:14pt;text-align:center;margin:9mm 0 5mm}.middle{display:flex;align-items:center;justify-content:space-around;height:45mm}.qr{height:39mm;width:39mm;image-rendering:auto}.nfc{text-align:center;width:33mm}.waves{font-size:25pt;display:block}.nfc strong{font-size:10pt}.card p{font-size:10pt;text-align:center;margin:3mm 0}.card small{position:absolute;right:7mm;bottom:5mm;font-size:7pt}.back .card{border-style:dashed}.sheet:last-child{break-after:auto;page-break-after:auto}@media screen{body{padding:10mm;background:#eee}.sheet{background:white;margin:0 auto 10mm;max-width:404mm;min-height:280mm;padding-top:4mm;box-shadow:0 1px 8px #ddd}}';
       win.document.open();
       win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>V1 Bulk Designer</title><style>'+css+'</style></head><body>'+sheets+'</body></html>');
       win.document.close();
