@@ -18,6 +18,22 @@ BEGIN
   IF EXISTS (SELECT 1 FROM unnest(p_pin_hashes) AS h WHERE h !~ '^[0-9a-f]{32}:[0-9a-f]{128}$') THEN
     RAISE EXCEPTION 'Invalid PIN hash';
   END IF;
+  -- Refuse to modify an unexpected schema. V1 existing data must remain untouched.
+  IF to_regclass('public.cards') IS NULL OR
+     (SELECT count(*) FROM information_schema.columns
+      WHERE table_schema='public' AND table_name='cards'
+        AND column_name IN ('card_code','activation_pin_hash','status')) <> 3 THEN
+    RAISE EXCEPTION 'V1 cards schema missing required columns';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns c
+    WHERE c.table_schema='public' AND c.table_name='cards'
+      AND c.is_nullable='NO' AND c.column_default IS NULL
+      AND c.column_name NOT IN ('card_code','activation_pin_hash','status')
+      AND c.is_generated='NEVER'
+  ) THEN
+    RAISE EXCEPTION 'V1 cards schema requires additional fields; review table before creating cards';
+  END IF;
   PERFORM pg_advisory_xact_lock(31749,1001);
   SELECT coalesce(max(substring(c.card_code from '^ULAS-([0-9]+)$')::bigint),0)+1
     INTO next_number
