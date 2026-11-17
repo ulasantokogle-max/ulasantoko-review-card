@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { isApprovedDedicatedV1DatabaseUrl } from "@/lib/v1-project-guard";
 
 /**
  * Independent V1 data connection. Never change the shared SUPABASE_* variables
@@ -21,16 +22,8 @@ export function v1SupabaseServer() {
   // Hard-pin the isolated production V1 project. A mistaken environment URL
   // must never allow a V1 write to reach V2, V3, WiV1 or another Supabase DB.
   // This guard is evaluated only when the new dedicated V1 variables are set.
-  if (dedicatedUrl) {
-    let parsed: URL;
-    try { parsed = new URL(dedicatedUrl); }
-    catch { throw new Error("Invalid dedicated V1 database URL"); }
-    if (parsed.protocol !== "https:" ||
-        parsed.hostname !== "pkgdtrasmakjeykhvxhh.supabase.co" ||
-        parsed.username || parsed.password || parsed.search || parsed.hash ||
-        parsed.pathname !== "/") {
-      throw new Error("V1 database URL does not match the approved isolated project");
-    }
+  if (dedicatedUrl && !isApprovedDedicatedV1DatabaseUrl(dedicatedUrl)) {
+    throw new Error("V1 database URL does not match the approved isolated project");
   }
 
   const url = dedicatedUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
