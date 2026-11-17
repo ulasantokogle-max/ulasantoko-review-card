@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { v1SupabaseServer } from "@/lib/v1-supabase";
+import { v1SupabaseServer, hasDedicatedV1Database, canIssueNewV1Cards } from "@/lib/v1-supabase";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { verifyActivationPin } from "@/lib/pin";
 import { resolveV1GooglePlaceId, suggestV1GooglePlace } from "@/lib/v1-google-maps";
@@ -33,6 +33,14 @@ function normalizeBusinessName(value: string) {
 
 export async function POST(request: NextRequest) {
   try {
+    // A partially migrated dedicated database must not accept activations.
+    // This does not change behavior on the existing legacy V1 connection.
+    if (hasDedicatedV1Database() && !(await canIssueNewV1Cards())) {
+      return NextResponse.json({
+        success: false,
+        message: "Aktivasi V1 belum tersedia: pemulihan data kartu lama belum diverifikasi.",
+      }, { status: 503, headers: { "Cache-Control": "no-store" } });
+    }
     const body = (await request.json()) as ActivateRequest;
     const supabase = v1SupabaseServer();
 
