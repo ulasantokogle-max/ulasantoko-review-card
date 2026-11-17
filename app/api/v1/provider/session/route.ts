@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseServer } from "@/lib/supabase";
-import { checkV1RateLimit } from "@/lib/v1-rate-limit";
+import { getV1RateLimitStatus } from "@/lib/v1-rate-limit";
 import { PROVIDER_COOKIE, createProviderSession, isProviderAuthenticated, providerCookieOptions } from "@/lib/v1-provider-auth";
 
 export const dynamic = "force-dynamic";
@@ -13,23 +13,51 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Reuse persistent fail-closed create throttling; do not log passwords.
-    if (!await checkV1RateLimit(supabaseServer(), request, "create")) {
-      return NextResponse.json({ message: "Terlalu banyak percobaan. Coba nanti." }, { status: 429, headers: noStore });
-    }
     const body = await request.json();
-    const input = typeof body.admin_key === "string" ? body.admin_key.trim() : "";
+    const input = typeof body?.admin_key === "string" ? body.admin_key.trim() : "";
     const secret = process.env.ADMIN_KEY;
-    if (!secret || !input) return NextResponse.json({ message: "Login gagal." }, { status: 401, headers: noStore });
-    const digest = (s: string) => createHmac("sha256", "v1-auth-compare").update(s).digest();
-    if (!timingSafeEqual(digest(input), digest(secret))) {
-      return NextResponse.json({ message: "Login gagal." }, { status: 401, headers: noStore });
+
+    if (!secret) {
+      return NextResponse.json({
+        message: "Admin Key Provider belum dikonfigurasi pada server V1.",
+      }, { status: 503, headers: noStore });
     }
-    const response = NextResponse.json({ authenticated: true }, { headers: noStore });
-    response.cookies.set(PROVIDER_COOKIE, createProviderSession(), providerCookieOptions);
-    return response;
+    if (!input) {
+      return NextResponse.json({ message: "Masukkan Admin Key Provider." },
+        { status: 400, headers: noStore });
+    }
+
+    const digest = (value: string) =>
+      createHmac("sha256", "v1-auth-compare").update(value).digest();
+    const validAdminKey = timingSafeEqual(digest(input), digest(secret));
+
+    // A correctly authenticated Provider must not be locked out because
+    // the legacy card database is paused. The session is signed by ADMIN_KEY;
+    // card operations still independently enforce the V1 migration gate.
+    if (validAdminKey) {
+      const response = NextResponse.json({ authenticated: true }, { headers: noStore });
+      response.cookies.set(PROVIDER_COOKIE, createProviderSession(), providerCookieOptions);
+      return response;
+    }
+
+    // Only failed logins consume the persistent login-specific rate limit.
+    // RPC failures are infrastructure errors (503), not "too many attempts" (429).
+    const throttle = await getV1RateLimitStatus(supabaseServer(), request, "login");
+    if (throttle === "unavailable") {
+      return NextResponse.json({
+        message: "Pemeriksaan keamanan login V1 sementara tidak tersedia. Periksa koneksi database V1.",
+      }, { status: 503, headers: noStore });
+    }
+    if (throttle === "limited") {
+      return NextResponse.json({ message: "Batas percobaan login tercapai. Coba lagi nanti." },
+        { status: 429, headers: { ...noStore, "Retry-After": "900" } });
+    }
+    return NextResponse.json({ message: "Admin Key Provider tidak cocok." },
+      { status: 401, headers: noStore });
   } catch {
-    return NextResponse.json({ message: "Login belum tersedia." }, { status: 503, headers: noStore });
+    return NextResponse.json({
+      message: "Login Provider V1 belum tersedia. Periksa konfigurasi server.",
+    }, { status: 503, headers: noStore });
   }
 }
 

@@ -1,0 +1,23 @@
+name: V1 Provider Login Hotfix Tests
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "lib/v1-rate-limit.ts"
+      - "app/api/v1/provider/session/route.ts"
+      - "tests/v1-provider-login.test.cjs"
+      - ".github/workflows/v1-provider-login-hotfix.yml"
+  push:
+    branches: [hotfix/v1-provider-login-false-429]
+jobs:
+  login-provider:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Verify V1 login when legacy DB is unavailable
+        run: node --test tests/v1-provider-login.test.cjs
