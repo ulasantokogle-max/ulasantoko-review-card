@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { v1SupabaseServer, canIssueNewV1Cards } from "@/lib/v1-supabase";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { hashActivationPin, generateActivationPin } from "@/lib/pin";
 import { randomInt } from "node:crypto";
@@ -7,17 +7,6 @@ import { randomInt } from "node:crypto";
 export const dynamic = "force-dynamic";
 
 const adminKey = process.env.ADMIN_KEY;
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error("Supabase server environment is not configured.");
-  }
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
 
 function generateCardCode() {
   const number = randomInt(10000, 100000);
@@ -31,7 +20,7 @@ export async function POST(request: NextRequest) {
     const receivedAdminKey = String(body.admin_key ?? "").trim();
     const cardCodeInput = String(body.card_code ?? "").trim().toUpperCase();
 
-    const supabase = getSupabase();
+    const supabase = v1SupabaseServer();
     if (!(await checkV1RateLimit(supabase, request, "create"))) {
       return NextResponse.json({success:false,message:"Terlalu banyak percobaan atau keamanan sementara tidak tersedia."},{status:429,headers:{"Retry-After":"900"}});
     }
@@ -56,6 +45,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+
+    if (!await canIssueNewV1Cards()) {
+      return NextResponse.json({success:false,message:"Migrasi data kartu V1 belum terverifikasi."},{status:503});
+    }
 
     let cardCode = cardCodeInput;
 
