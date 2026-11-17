@@ -24,3 +24,10 @@ test("V1 bulk designer requires isolated database and verified import", () => {
   assert.match(designer, /!hasDedicatedV1Database\(\)/);
   assert.match(designer, /!\(await canIssueNewV1Cards\(\)\)/);
 });
+
+test("V1 single-card creation protects PIN response from caches", () => {
+  assert.match(single, /const noStore = \{ "Cache-Control": "no-store" \}/);
+  assert.match(single, /status: 201, headers: noStore/);
+  assert.match(single, /timingSafeEqual\(digest\(provided\), digest\(configured\)\)/);
+  assert.doesNotMatch(single, /receivedAdminKey !== adminKey/);
+});
