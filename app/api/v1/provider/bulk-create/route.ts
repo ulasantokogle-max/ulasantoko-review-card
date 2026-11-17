@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isProviderAuthenticated } from "@/lib/v1-provider-auth";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { generateActivationPin, hashActivationPin } from "@/lib/pin";
-import { v1SupabaseServer, canIssueNewV1Cards } from "@/lib/v1-supabase";
+import { v1SupabaseServer, canIssueNewV1Cards, hasDedicatedV1Database } from "@/lib/v1-supabase";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "no-store" };
@@ -10,6 +10,12 @@ const noStore = { "Cache-Control": "no-store" };
 export async function POST(request: NextRequest) {
   if (!isProviderAuthenticated(request)) {
     return NextResponse.json({ message: "Login Provider diperlukan." }, { status: 401, headers: noStore });
+  }
+  // Never create mass cards against the legacy/shared Supabase database.
+  if (!hasDedicatedV1Database()) {
+    return NextResponse.json({
+      message: "Bulk Create V1 memerlukan koneksi Supabase V1 khusus yang sudah diverifikasi.",
+    }, { status: 503, headers: noStore });
   }
   let count: number;
   try {
