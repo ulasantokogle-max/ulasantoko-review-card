@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isProviderAuthenticated } from "@/lib/v1-provider-auth";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { generateActivationPin, hashActivationPin } from "@/lib/pin";
-import { supabaseServer } from "@/lib/supabase";
+import { v1SupabaseServer } from "@/lib/v1-supabase";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "no-store" };
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Jumlah harus 1–100 kartu." }, { status: 400, headers: noStore });
   }
   try {
-    const db = supabaseServer();
+    const db = v1SupabaseServer();
     if (!await checkV1RateLimit(db, request, "create")) {
       return NextResponse.json({ message: "Limit percobaan tercapai atau layanan database belum tersedia." },
         { status: 429, headers: { ...noStore, "Retry-After": "900" } });
