@@ -36,3 +36,16 @@ Scope: **UlasanToko V1 only**. Do not merge or deploy to V3, WiV1, or shared dom
 9. Untuk cutover: freeze pembuatan/aktivasi kartu V1 seperlunya, final sync jika database lama sudah dapat diakses, verifikasi smoke tests, baru pindahkan koneksi env production **V1** dan lakukan rollout terkendali. Simpan rollback siap pakai.
 
 Status: Dokumen persiapan saja. Tidak ada project Supabase baru yang dibuat dan tidak ada production cutover.
+
+## Status eksekusi 17 November 2026 — Supabase Free baru
+- Koneksi kedua: `Supabase V1 - UlasanToko Baru`; project `pkgdtrasmakjeykhvxhh` (`ulasantoko-v1-production`), Singapore, ACTIVE_HEALTHY.
+- Migrasi benar-benar **sudah diterapkan hanya pada DB V1 baru**:
+  - `v1_initial_isolated_schema_with_import_gate`
+  - `v1_restrict_auto_rls_event_function`
+- Tabel siap: `public.cards`, `public.v1_security_attempts`, `public.v1_migration_gate`. Jumlah kartu 0, migration gate `imported_and_verified=false`.
+- RPC tersedia: `v1_check_rate_limit` dan `v1_bulk_create_cards`; hanya dapat dieksekusi oleh service_role. GRANT SELECT publik ditutup dan RLS aktif di ketiga tabel.
+- Supabase security advisors hanya INFO `rls_enabled_no_policy` (disengaja; API khusus server; tidak memberikan kebijakan baca publik).
+- GitHub PR #8: preview Vercel SUCCESS; V1 Redirect Policy Tests SUCCESS; V2 CI SUCCESS. **Tidak** berarti production database atau QR fisik telah diuji.
+- V1 database lama `mnpherdmkecbogomzlnk` masih INACTIVE dan `list_tables` tidak dapat mengaksesnya. Backup lengkap / restore kartu lama **belum tersedia**.
+- Referensi kode schema baru: `supabase/v1_new_project_bootstrap.sql`.
+- Dilarang mengubah `app.ulasantoko.space` atau environment V1 sebelum backup legacy berhasil diimpor, diverifikasi, dan `v1_migration_gate` dibuka secara terkontrol.
