@@ -46,12 +46,18 @@ export function v1SupabaseServer() {
 export async function canIssueNewV1Cards(): Promise<boolean> {
   if (!hasDedicatedV1Database()) return true;
   try {
-    const { data, error } = await v1SupabaseServer()
-      .from("v1_migration_gate")
-      .select("imported_and_verified")
-      .eq("singleton", true)
-      .maybeSingle();
-    return !error && data?.imported_and_verified === true;
+    const client = v1SupabaseServer();
+    const [gate, cards] = await Promise.all([
+      client.from("v1_migration_gate")
+        .select("imported_and_verified")
+        .eq("singleton", true)
+        .maybeSingle(),
+      client.from("cards").select("id", { head: true, count: "exact" }),
+    ]);
+    // Prevent opening an empty new database by merely flipping the gate.
+    return !gate.error && !cards.error
+      && gate.data?.imported_and_verified === true
+      && typeof cards.count === "number" && cards.count > 0;
   } catch {
     return false;
   }
