@@ -89,7 +89,7 @@ export default function ProviderToolsPage() {
     <section className="mx-auto max-w-md rounded-3xl border border-gray-200 bg-white p-7 shadow-sm">
       <p className="text-xs font-semibold text-gray-500">ULASANTOKO V1</p>
       <h1 className="mt-2 text-2xl font-bold">Provider • Kelola Kartu</h1>
-      <p className="mt-2 text-sm text-gray-600">Download ulang QR dan rewrite NFC tanpa membuat kartu baru.</p>
+      <p className="mt-2 text-sm text-gray-600">Kelola kartu V1: buat kartu, Bulk Create Massal, Bulk Designer, download QR, dan rewrite NFC. Fitur massal hanya aktif setelah database V1 diverifikasi.</p>
       {checking ? <p className="mt-6">Memeriksa sesi...</p> : !authenticated ?
         <form onSubmit={login} className="mt-6 space-y-3">
           <label className="block text-sm font-semibold">Admin Key Provider</label>
@@ -100,6 +100,8 @@ export default function ProviderToolsPage() {
         <div className="mt-6 space-y-5">
           <div className="flex items-center justify-between">
             <a className="text-sm text-blue-700 underline" href="/admin/cards">Buat kartu baru</a>
+            <a className="text-sm text-blue-700 underline" href="/admin/provider/bulk-create">Bulk Create Massal</a>
+            <a className="text-sm text-blue-700 underline" href="/admin/provider/bulk-designer">Bulk Designer</a>
             <button type="button" className="text-sm underline" onClick={logout}>Keluar</button>
           </div>
           <form onSubmit={findCard} className="space-y-3">
