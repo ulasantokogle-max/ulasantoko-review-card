@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { v1SupabaseServer, canIssueNewV1Cards } from "@/lib/v1-supabase";
+import { v1SupabaseServer, canIssueNewV1Cards, hasDedicatedV1Database } from "@/lib/v1-supabase";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { hashActivationPin, generateActivationPin } from "@/lib/pin";
-import { randomInt, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +12,6 @@ function adminKeyMatches(provided: string, configured: string): boolean {
   return timingSafeEqual(digest(provided), digest(configured));
 }
 
-function generateCardCode() {
-  const number = randomInt(10000, 100000);
-  return `ULAS-${number}`;
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -24,6 +19,10 @@ export async function POST(request: NextRequest) {
     const receivedAdminKey = String(body.admin_key ?? "").trim();
     const cardCodeInput = String(body.card_code ?? "").trim().toUpperCase();
 
+    if (!hasDedicatedV1Database()) {
+      return NextResponse.json({success:false,message:"Koneksi database khusus V1 belum diatur. Pembuatan kartu ditahan agar data sistem lama tetap aman."},
+        {status:503,headers:noStore});
+    }
     const supabase = v1SupabaseServer();
     if (!(await checkV1RateLimit(supabase, request, "create"))) {
       return NextResponse.json({success:false,message:"Terlalu banyak percobaan atau keamanan sementara tidak tersedia."},{status:429,headers:{"Retry-After":"900"}});
@@ -55,98 +54,60 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({success:false,message:"Migrasi data kartu V1 belum terverifikasi."},{status:503,headers:noStore});
     }
 
-    let cardCode = cardCodeInput;
-
-    if (cardCode && !/^ULAS-\d{5,}$/.test(cardCode)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Format kode kartu tidak valid.",
-        },
-        { status: 400, headers: noStore }
-      );
-    }
-
-    let attempts = 0;
-
-    while (!cardCode && attempts < 10) {
-      const candidate = generateCardCode();
-
-      const { data: existing } = await supabase
-        .from("cards")
-        .select("id")
-        .eq("card_code", candidate)
-        .maybeSingle();
-
-      if (!existing) {
-        cardCode = candidate;
-        break;
-      }
-
-      attempts++;
-    }
-
-    if (!cardCode) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Gagal membuat kode kartu unik.",
-        },
-        { status: 500, headers: noStore }
-      );
-    }
-
-    const { data: existingCard } = await supabase
-      .from("cards")
-      .select("id")
-      .eq("card_code", cardCode)
-      .maybeSingle();
-
-    if (existingCard) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Kode kartu sudah digunakan.",
-        },
-        { status: 409, headers: noStore }
-      );
+    if (cardCodeInput && !/^ULAS-\d{5,}$/.test(cardCodeInput)) {
+      return NextResponse.json({success:false,message:"Format kode kartu tidak valid."},
+        {status:400,headers:noStore});
     }
 
     const activationPin = generateActivationPin();
     const activationPinHash = hashActivationPin(activationPin);
 
-    const { data: card, error } = await supabase
-      .from("cards")
-      .insert({
-        card_code: cardCode,
-        activation_pin_hash: activationPinHash,
-        status: "inactive",
-      })
-      .select("id, card_code, status")
-      .single();
-
-    if (error) {
-      console.error("CARD_CREATE_ERROR", error);
-
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Kartu gagal dibuat. Hubungi administrator.",
-        },
-        { status: 500, headers: noStore }
-      );
+    if (!cardCodeInput) {
+      // Same atomic sequential allocator as V1 Bulk Create. Avoid random
+      // codes, gaps caused by collisions and duplicate code races.
+      const {data,error} = await supabase.rpc("v1_bulk_create_cards",{
+        p_pin_hashes:[activationPinHash],
+      });
+      if (error || !Array.isArray(data) || data.length !== 1 ||
+          typeof data[0]?.card_code !== "string") {
+        console.error("V1_SINGLE_RPC_ERROR",error?.code ?? "unexpected_result");
+        return NextResponse.json({success:false,message:"Pembuatan kartu belum siap. Periksa database V1."},
+          {status:503,headers:noStore});
+      }
+      return NextResponse.json({
+        success:true,message:"Kartu berhasil dibuat.",
+        card_code:data[0].card_code,activation_pin:activationPin,status:"inactive",
+      },{status:201,headers:noStore});
     }
 
-    return NextResponse.json(
-      {
-        success: true,
-        message: "Kartu berhasil dibuat.",
-        card_code: card.card_code,
-        activation_pin: activationPin,
-        status: card.status,
-      },
-      { status: 201, headers: noStore }
-    );
+    // Preserve manual-code workflow for legacy V1 print stock.
+    // The database UNIQUE constraint is the final concurrency guard.
+    const {data: existingCard,error: lookupError} = await supabase.from("cards")
+      .select("id").eq("card_code",cardCodeInput).maybeSingle();
+    if (lookupError) {
+      return NextResponse.json({success:false,message:"Pengecekan kode kartu V1 gagal."},
+        {status:503,headers:noStore});
+    }
+    if (existingCard) {
+      return NextResponse.json({success:false,message:"Kode kartu sudah digunakan."},
+        {status:409,headers:noStore});
+    }
+    const {data:card,error:insertError} = await supabase.from("cards")
+      .insert({card_code:cardCodeInput,activation_pin_hash:activationPinHash,status:"inactive"})
+      .select("card_code,status").single();
+    if (insertError || !card) {
+      if (insertError?.code === "23505") {
+        return NextResponse.json({success:false,message:"Kode kartu sudah digunakan."},
+          {status:409,headers:noStore});
+      }
+      console.error("V1_SINGLE_INSERT_ERROR",insertError?.code);
+      return NextResponse.json({success:false,message:"Kartu gagal dibuat. Periksa database V1."},
+        {status:503,headers:noStore});
+    }
+    return NextResponse.json({
+      success:true,message:"Kartu berhasil dibuat.",
+      card_code:card.card_code,activation_pin:activationPin,status:card.status,
+    },{status:201,headers:noStore});
   } catch (error) {
     console.error("CREATE_CARD_ROUTE_ERROR", error);
 
