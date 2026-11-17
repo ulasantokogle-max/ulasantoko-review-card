@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isProviderAuthenticated } from "@/lib/v1-provider-auth";
-import { supabaseServer } from "@/lib/supabase";
+import { v1SupabaseServer } from "@/lib/v1-supabase";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: "Masukkan kode kartu yang valid." }, { status: 400, headers });
   }
   try {
-    const { data, error } = await supabaseServer().from("cards")
+    const { data, error } = await v1SupabaseServer().from("cards")
       .select("card_code,status,business_name").eq("card_code", code).maybeSingle();
     if (error) throw error;
     if (!data) return NextResponse.json({ message: "Kartu tidak ditemukan." }, { status: 404, headers });
