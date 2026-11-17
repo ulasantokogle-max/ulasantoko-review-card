@@ -12,6 +12,16 @@ BEGIN
   IF auth.role() IS DISTINCT FROM 'service_role' THEN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
+  -- Prevent issuing ULAS codes before all legacy V1 cards are imported and audited.
+  IF to_regclass('public.v1_migration_gate') IS NULL THEN
+    RAISE EXCEPTION 'V1 migration gate is not installed';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.v1_migration_gate
+    WHERE singleton = true AND imported_and_verified = true
+  ) THEN
+    RAISE EXCEPTION 'Legacy V1 data has not been imported and verified';
+  END IF;
   IF coalesce(array_length(p_pin_hashes,1),0) NOT BETWEEN 1 AND 100 THEN
     RAISE EXCEPTION 'Count must be 1 to 100';
   END IF;
