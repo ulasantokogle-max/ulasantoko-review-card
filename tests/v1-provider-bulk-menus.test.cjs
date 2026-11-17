@@ -20,7 +20,8 @@ test("bulk APIs cannot fall back to old shared credentials",()=>{
  assert.match(bulkApi,/!await canIssueNewV1Cards\(\)/);
  assert.match(validateApi,/!hasDedicatedV1Database\(\)/);
  assert.match(validateApi,/!\(await canIssueNewV1Cards\(\)\)/);
- assert.match(statusApi,/if \(!hasDedicatedV1Database\(\)\)/);
+ assert.match(statusApi,/const configured = hasDedicatedV1Database\(\);/);
+ assert.match(statusApi,/if \(!configured\)/);
  assert.match(statusApi,/ready: false/);
 });
 test("designer checks session and verifies V1-only CSV before print",()=>{
