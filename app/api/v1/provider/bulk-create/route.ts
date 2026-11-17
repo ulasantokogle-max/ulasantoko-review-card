@@ -25,7 +25,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Limit percobaan tercapai atau layanan database belum tersedia." },
         { status: 429, headers: { ...noStore, "Retry-After": "900" } });
     }
-    const pins = Array.from({ length: count }, () => generateActivationPin());
+    const uniquePins = new Set<string>();
+    while (uniquePins.size < count) uniquePins.add(generateActivationPin());
+    const pins = Array.from(uniquePins);
     const { data, error } = await db.rpc("v1_bulk_create_cards", { p_pin_hashes: pins.map(hashActivationPin) });
     if (error) {
       console.error("V1_BULK_CREATE_ERROR", error.code);
