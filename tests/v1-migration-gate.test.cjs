@@ -27,7 +27,7 @@ test("V1 bulk designer requires isolated database and verified import", () => {
 
 test("V1 single-card creation protects PIN response from caches", () => {
   assert.match(single, /const noStore = \{ "Cache-Control": "no-store" \}/);
-  assert.match(single, /status:\\s*201,\\s*headers:\\s*noStore/);
+  assert.match(single, /status:\s*201,\s*headers:\s*noStore/);
   assert.match(single, /timingSafeEqual\(digest\(provided\), digest\(configured\)\)/);
   assert.doesNotMatch(single, /receivedAdminKey !== adminKey/);
 });
