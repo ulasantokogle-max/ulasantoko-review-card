@@ -22,3 +22,17 @@ Scope: **UlasanToko V1 only**. Do not merge or deploy to V3, WiV1, or shared dom
 - The V1 rate limiter is fail-closed. If Supabase is paused or the RPC is unavailable, Provider login and card creation may show a 429. This is not evidence of a wrong Provider key.
 - Activation PINs are only returned when the batch is created; download and protect the CSV immediately. Avoid logging, posting, or sharing the CSV publicly.
 - Never automatically retry a failed bulk creation without auditing whether the transaction committed.
+
+## Migrasi ke akun Supabase Free baru — V1 ONLY
+
+1. Owner membuat akun Supabase **baru** dan organisasi **baru** (jangan join/memakai organisasi V3/WiV1 yang lama); pilih region Singapore `ap-southeast-1` dan nama rencana `ulasantoko-v1-production`. Pastikan kebijakan kuota Free mengizinkan proyek baru.
+2. Hubungkan akun Supabase baru ke ChatGPT melalui Settings > Plugins; periksa kembali project/organization ID sebelum tindakan. Jangan mengirim database password, service_role key, token, atau `ADMIN_KEY` di chat.
+3. **Jangan membuat database cards kosong sebagai pengganti database lama untuk production.** Seluruh kartu lama akan tampak hilang jika aplikasi tiba-tiba diarahkan ke database kosong.
+4. Peroleh **backup konsisten dari V1 lama** (schema, `public.cards`, kode, status, PIN hash, link review, timestamps, constraints/indexes, policy dan RPC). Sumber lama `mnpherdmkecbogomzlnk` saat ini INACTIVE. Selidiki opsi backup-download/restore di dashboard akun lama, atau pulihkan sementara kapasitas untuk export. Jangan memindahkan V3 atau WiV1.
+5. Backup lama mungkin memuat data sensitif; lakukan restore menggunakan prosedur resmi di lingkungan dengan akses terbatas, jangan bagikan dump atau secrets ke chat. Verifikasi jumlah kartu, `card_code`, status dan review target, duplicate code, dan 5 sampel kartu aktif/nonaktif.
+6. Pada database V1 baru saja: pulihkan schema/data V1 lama terlebih dulu; jalankan `supabase/v1_bulk_create_preflight_readonly.sql`; terapkan `v1_security_rate_limit.sql` bila belum tersedia dan migrasi `20261117_v1_bulk_create_cards.sql` setelah audit struktur.
+7. Proyek hosting V1 harus dapat diakses secara terpisah; atur `NEXT_PUBLIC_SUPABASE_URL` dan `SUPABASE_SERVICE_ROLE_KEY` secara eksklusif pada environment aplikasi **V1**. Jaga `ADMIN_KEY` dan `V1_RATE_LIMIT_SECRET` tersimpan aman. Jangan gunakan project atau key V3/WiV1.
+8. Uji preview terhadap lingkungan isolasi terlebih dahulu. Tanpa backup yang valid, hentikan proses sebelum mengubah environment production atau mapping QR/NFC. Jangan mengubah link fisik `app.ulasantoko.space/r-v1/ULAS-xxxxx`.
+9. Untuk cutover: freeze pembuatan/aktivasi kartu V1 seperlunya, final sync jika database lama sudah dapat diakses, verifikasi smoke tests, baru pindahkan koneksi env production **V1** dan lakukan rollout terkendali. Simpan rollback siap pakai.
+
+Status: Dokumen persiapan saja. Tidak ada project Supabase baru yang dibuat dan tidak ada production cutover.
