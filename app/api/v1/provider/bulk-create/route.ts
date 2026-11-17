@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isProviderAuthenticated } from "@/lib/v1-provider-auth";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { generateActivationPin, hashActivationPin } from "@/lib/pin";
-import { v1SupabaseServer } from "@/lib/v1-supabase";
+import { v1SupabaseServer, canIssueNewV1Cards } from "@/lib/v1-supabase";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "no-store" };
@@ -24,6 +24,9 @@ export async function POST(request: NextRequest) {
     if (!await checkV1RateLimit(db, request, "create")) {
       return NextResponse.json({ message: "Limit percobaan tercapai atau layanan database belum tersedia." },
         { status: 429, headers: { ...noStore, "Retry-After": "900" } });
+    }
+    if (!await canIssueNewV1Cards()) {
+      return NextResponse.json({message:"Data kartu V1 lama belum diimpor dan diverifikasi. Bulk Create masih dikunci."},{status:503,headers:noStore});
     }
     const uniquePins = new Set<string>();
     while (uniquePins.size < count) uniquePins.add(generateActivationPin());
