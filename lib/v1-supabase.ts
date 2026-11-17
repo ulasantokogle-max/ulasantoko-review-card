@@ -18,6 +18,21 @@ export function v1SupabaseServer() {
     throw new Error("Incomplete V1 database configuration");
   }
 
+  // Hard-pin the isolated production V1 project. A mistaken environment URL
+  // must never allow a V1 write to reach V2, V3, WiV1 or another Supabase DB.
+  // This guard is evaluated only when the new dedicated V1 variables are set.
+  if (dedicatedUrl) {
+    let parsed: URL;
+    try { parsed = new URL(dedicatedUrl); }
+    catch { throw new Error("Invalid dedicated V1 database URL"); }
+    if (parsed.protocol !== "https:" ||
+        parsed.hostname !== "pkgdtrasmakjeykhvxhh.supabase.co" ||
+        parsed.username || parsed.password || parsed.search || parsed.hash ||
+        parsed.pathname !== "/") {
+      throw new Error("V1 database URL does not match the approved isolated project");
+    }
+  }
+
   const url = dedicatedUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = dedicatedKey || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
