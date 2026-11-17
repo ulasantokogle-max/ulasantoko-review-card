@@ -51,7 +51,21 @@ export default function BulkDesignerV1Page() {
       .catch(() => setAuthenticated(false)).finally(() => setChecking(false));
   }, []);
 
+  async function verifyCodes(codes: string[]) {
+    const response = await fetch("/api/v1/provider/validate-cards", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codes }),
+      cache: "no-store",
+    });
+    const result = await response.json();
+    if (!response.ok || result.valid !== true) {
+      throw new Error(result.message || "Tidak bisa memverifikasi kode kartu V1.");
+    }
+  }
+
   async function loadCsv(file: File) {
+    setCards([]);
+    setError("");
     try {
       const text = (await file.text()).replace(/^\ufeff/, "");
       if (file.size > 1_000_000) throw new Error("CSV terlalu besar (maksimal 1 MB).");
@@ -60,6 +74,7 @@ export default function BulkDesignerV1Page() {
         .map(row => row.match(/ULAS-\d{5,}/i)?.[0].toUpperCase())
         .filter((value): value is string => !!value)));
       if (!codes.length || codes.length > 200) throw new Error("CSV harus berisi 1–200 kode kartu ULAS-xxxxx.");
+      await verifyCodes(codes);
       setCards(codes.map(code => ({ code, url: BASE + encodeURIComponent(code) })));
       setError("");
     } catch (e) { setError(e instanceof Error ? e.message : "CSV tidak dapat dibaca."); }
@@ -72,7 +87,8 @@ export default function BulkDesignerV1Page() {
     const win = window.open("", "_blank");
     if (!win) { setError("Izinkan pop-up untuk membuat PDF."); setBusy(false); return; }
     try {
-      win.document.write("<!doctype html><html><head><title>Menyiapkan desain V1...</title></head><body><p>Menyiapkan desain kartu...</p></body></html>");
+      win.document.write("<!doctype html><html><head><title>Menyiapkan desain V1...</title></head><body><p>Memvalidasi kartu V1...</p></body></html>");
+      await verifyCodes(cards.map(c => c.code));
       const images = await Promise.all(cards.map(c => qrImage(c.url, mode)));
       const render = (c: Card, qr: string, back: boolean) => {
         const qrPart = '<img class="qr" alt="QR code" src="' + qr + '">';
@@ -119,7 +135,7 @@ export default function BulkDesignerV1Page() {
     <section className="mx-auto max-w-3xl rounded-3xl border bg-white p-7 shadow-sm">
       <p className="text-xs font-bold text-blue-700">ULASANTOKO V1 · PROVIDER</p>
       <h1 className="mt-2 text-2xl font-bold">Bulk Designer V1</h1>
-      <p className="mt-2 text-sm text-gray-600">Import CSV Bulk Create untuk desain kartu 10 × 10 cm, 6 kartu per lembar A3 landscape.</p>
+      <p className="mt-2 text-sm text-gray-600">Import CSV Bulk Create V1 untuk desain kartu 10 × 10 cm, 6 kartu per lembar A3 landscape. Kode hanya dapat dicetak setelah diverifikasi pada database V1.</p>
       {checking ? <p className="mt-5">Memeriksa sesi Provider...</p>
         : !authenticated ? <p className="mt-5">Silakan <a href="/admin/provider" className="text-blue-700 underline">login Provider</a> terlebih dahulu.</p>
         : <>
