@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
+import { parseV1BulkCsv } from "@/lib/v1-bulk-csv";
 
 type Card = { code: string; url: string };
 const BASE = "https://app.ulasantoko.space/r-v1/";
@@ -69,11 +70,7 @@ export default function BulkDesignerV1Page() {
     try {
       const text = (await file.text()).replace(/^\ufeff/, "");
       if (file.size > 1_000_000) throw new Error("CSV terlalu besar (maksimal 1 MB).");
-      const lines = text.split(/\r?\n/);
-      const codes = Array.from(new Set(lines
-        .map(row => row.match(/ULAS-\d{5,}/i)?.[0].toUpperCase())
-        .filter((value): value is string => !!value)));
-      if (!codes.length || codes.length > 200) throw new Error("CSV harus berisi 1–200 kode kartu ULAS-xxxxx.");
+      const codes = parseV1BulkCsv(text);
       await verifyCodes(codes);
       setCards(codes.map(code => ({ code, url: BASE + encodeURIComponent(code) })));
       setError("");
