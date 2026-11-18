@@ -238,7 +238,7 @@ export default function BulkDesignerV1Page() {
       <a href="/admin/provider" className="text-sm text-blue-700 underline">← Kembali ke Provider V1</a>
       <p className="mt-5 text-xs font-bold tracking-wide text-blue-700">ULASANTOKO V1 · PROVIDER</p>
       <h1 className="mt-2 text-3xl font-bold text-slate-900">Bulk Card Designer V1</h1>
-      <p className="mt-2 max-w-4xl text-sm text-slate-600">Upload CSV Bulk Create, pilih desain, atur QR, preview kartu pertama, lalu ekspor PNG HD atau cetak A3/A3+. Semua gambar diproses di browser; PIN aktivasi tidak dicetak atau diunggah.</p>
+      <p className="mt-2 max-w-4xl text-sm text-slate-600">Upload CSV Bulk Create, pilih desain, atur QR, preview kartu pertama, lalu ekspor PNG HD atau cetak A3/A3+. Semua gambar diproses di browser; PIN aktivasi tidak dicetak atau diunggah. Nomor ULAS juga tidak dicetak di pojok desain, tetapi tetap tersimpan dalam CSV dan tautan QR.</p>
       {checking ? <p className="mt-6">Memeriksa sesi Provider V1...</p> :
         !authenticated ? <p className="mt-6">Silakan <a href="/admin/provider" className="text-blue-700 underline">login Provider V1</a> terlebih dahulu.</p> :
       <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
@@ -294,7 +294,7 @@ export default function BulkDesignerV1Page() {
             </div>
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <h3 className="text-sm font-semibold">Atur posisi & ukuran QR — {side==="front"?"depan":"belakang"}</h3>
-              {templates[selectedDesign] && <p className="mt-1 text-xs text-blue-800">Untuk gambar custom, ukuran awal QR 26%, X {selectedDesign.endsWith("_left")?"31":"69"}%, Y 58% agar masuk di kotak desain tanpa menutup bintang.</p>}
+              {templates[selectedDesign] && <p className="mt-1 text-xs text-blue-800">Untuk gambar custom, ukuran awal QR 24%, X {selectedDesign.endsWith("_left")?"31":"69"}%, Y 58% agar masuk di kotak desain tanpa menutup bintang.</p>}
               {([["x","Posisi horizontal (X)",15,85],["y","Posisi vertikal (Y)",25,78],["size","Ukuran QR",25,43]] as const).map(([field,label,min,max])=>
                 <label className="mt-3 block text-xs" key={field}>{label} — <strong>{selectedPlacement[field]}%</strong>
                   <input className="mt-1 block w-full" type="range" min={min} max={max} value={selectedPlacement[field]}
