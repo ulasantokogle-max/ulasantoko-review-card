@@ -152,7 +152,10 @@ export function v1Zip(files:{name:string; bytes:Uint8Array}[]):Blob{
     u32(lv,0,0x04034b50);u16(lv,4,20);u16(lv,6,0x800);u16(lv,8,0);
     u32(lv,14,crc);u32(lv,18,file.bytes.length);u32(lv,22,file.bytes.length);
     u16(lv,26,name.length);local.set(name,30);
-    chunks.push(local,file.bytes);
+    // Convert to owned ArrayBuffers: BlobPart must not carry SharedArrayBuffer-like types.
+    const ownedBytes=new Uint8Array(file.bytes.byteLength);
+    ownedBytes.set(file.bytes);
+    chunks.push(local.buffer,ownedBytes.buffer);
     const record=new Uint8Array(46+name.length);
     const rv=new DataView(record.buffer);
     u32(rv,0,0x02014b50);u16(rv,4,20);u16(rv,6,20);u16(rv,8,0x800);
@@ -162,10 +165,10 @@ export function v1Zip(files:{name:string; bytes:Uint8Array}[]):Blob{
     offset+=local.length+file.bytes.length;
     centralSize+=record.length;
   }
-  chunks.push(...directory);
+  chunks.push(...directory.map(entry=>entry.buffer));
   const end=new Uint8Array(22), ev=new DataView(end.buffer);
   u32(ev,0,0x06054b50);u16(ev,8,files.length);u16(ev,10,files.length);
   u32(ev,12,centralSize);u32(ev,16,offset);
-  chunks.push(end);
+  chunks.push(end.buffer);
   return new Blob(chunks,{type:"application/zip"});
 }
