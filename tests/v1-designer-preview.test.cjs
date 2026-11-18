@@ -150,9 +150,8 @@ test("renderer masks uploaded QR before drawing exactly one new verified V1 QR",
     assert.ok(!logs.some(x=>x.op==="fillRect"&&x.args[2]>=240&&x.args[2]<=270),
       "an uploaded template must not get an additional white QR outline");
     assert.ok(qrDraw[1]>fillOld,"the generated QR is rendered over the template after cleanup");
-    const sourceCodeMask=logs.find(x=>x.op==="fillRect"&&x.args[0]===800);
-    assert.ok(sourceCodeMask,"embedded ULAS code on uploaded artwork must be hidden");
-    assert.deepEqual(sourceCodeMask.args,[800,912,165,55]);
+    assert.ok(!logs.some(x=>x.op==="fillRect"&&x.args[0]===800&&x.args[1]===912),
+      "footer YukReview must not be covered by a white rectangle");
     assert.ok(!logs.some(x=>x.op==="fillText"&&x.args[0]==="ULAS-00206"),
       "the printed card must not display its ULAS code");
   }finally{
@@ -164,8 +163,8 @@ test("renderer masks uploaded QR before drawing exactly one new verified V1 QR",
 test("uploaded QR fits completely below the five stars and inside the original frame",()=>{
   const left=layouts.v1UploadedTemplatePlacement("navy_left");
   const right=layouts.v1UploadedTemplatePlacement("white_right");
-  assert.deepEqual(left,{x:31,y:58,size:24});
-  assert.deepEqual(right,{x:69,y:58,size:24});
+  assert.deepEqual(left,{x:31,y:58,size:26});
+  assert.deepEqual(right,{x:69,y:58,size:26});
   assert.ok(left.y-left.size/2>=45,"QR quiet-zone starts below the five-star row");
   assert.ok(left.x-left.size/2>16,"QR stays inside blue frame left edge");
   assert.ok(left.x+left.size/2<47,"QR stays inside blue frame right edge");
@@ -186,8 +185,8 @@ test("V1 card renderer hides card code but preserves the full verified QR URL",(
   assert.doesNotMatch(exportsSource,/ctx\.fillText\(card\.code/);
   assert.match(exportsSource,/ctx\.drawImage\(qr,/);
   assert.match(exportsSource,/if\(custom\)/);
-  assert.equal(layouts.v1SafePlacement({x:31,y:58,size:24}).size,24,
-    "the safety clamp must not silently enlarge 24% QR to 25%");
+  assert.equal(layouts.v1SafePlacement({x:31,y:58,size:26}).size,26,
+    "the safety clamp must preserve a 26% QR");
   assert.equal(layouts.v1DefaultPlacement("navy_left").size,35,
     "built-in QR designs keep their prior default size");
   assert.match(page,/v1UploadedTemplatePlacement\(key\)/);
