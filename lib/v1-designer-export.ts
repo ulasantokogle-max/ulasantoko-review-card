@@ -1,10 +1,11 @@
 "use client";
 import QRCode from "qrcode";
-import {V1_DESIGNS,v1SafePlacement,type V1CardData,type V1DesignKey,type V1QRPlacement,type V1QRMode} from "@/lib/v1-designer-layout";
+import {V1_DESIGNS,v1SafePlacement,v1SafeTemplateQrCleanup,type V1CardData,type V1DesignKey,type V1QRPlacement,type V1QRMode,type V1TemplateQrCleanup} from "@/lib/v1-designer-layout";
 
 export type V1RenderSettings = {
   card:V1CardData; design:V1DesignKey; mode:V1QRMode;
   placement:V1QRPlacement; templateDataUrl?:string;
+  templateQrCleanup?:V1TemplateQrCleanup;
   pixels?:number;
 };
 
@@ -74,6 +75,20 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
   if(custom){
     const img=await imageFromDataUrl(custom);
     cropFill(ctx,img,size);
+    // Uploaded templates may already contain a QR (often a placeholder,
+    // or an outdated/unscannable code). Remove that source QR before adding
+    // the verified V1 code below. This is canvas-only; original file stays
+    // intact. The same renderer serves live preview, PNG, ZIP and print.
+    if(settings.templateQrCleanup?.enabled){
+      const cleanup=v1SafeTemplateQrCleanup(settings.templateQrCleanup);
+      const side=size*cleanup.size/100;
+      ctx.fillStyle=cleanup.color;
+      ctx.fillRect(
+        size*cleanup.x/100-side/2,
+        size*cleanup.y/100-side/2,
+        side,side
+      );
+    }
   } else {
     ctx.fillStyle=preset.dark?"#112e57":"#ffffff";ctx.fillRect(0,0,size,size);
     if(preset.dark) {

@@ -14,6 +14,40 @@ export const V1_DESIGNS: {key: V1DesignKey; title: string; dark: boolean; qrLeft
 export type V1QRPlacement = {x: number; y: number; size: number};
 export type V1CardData = {code: string; url: string};
 
+export type V1TemplateQrCleanup = {
+  enabled: boolean;
+  x: number;
+  y: number;
+  size: number;
+  color: string;
+};
+/** Uploaded artwork can already include an obsolete, potentially unscannable QR.
+ * Default the cleanup over the opposite side to the new QR, matching V1
+ * printed-card templates that place their embedded QR on the other side.
+ * It is configurable and applies only to uploaded artwork.
+ */
+export function v1DefaultTemplateQrCleanup(key: V1DesignKey): V1TemplateQrCleanup {
+  return {
+    enabled: true,
+    x: key.endsWith("_left") ? 71 : 29,
+    y: 55,
+    size: 31,
+    color: "#ffffff",
+  };
+}
+export function v1SafeTemplateQrCleanup(v: V1TemplateQrCleanup): V1TemplateQrCleanup {
+  const size = Math.max(24, Math.min(43, Number(v.size) || 31));
+  const half = size / 2;
+  return {
+    enabled: v.enabled === true,
+    x: Math.max(half, Math.min(100 - half, Number(v.x) || 50)),
+    y: Math.max(half, Math.min(100 - half, Number(v.y) || 55)),
+    size,
+    color: /^#[0-9a-fA-F]{6}$/.test(v.color) ? v.color : "#ffffff",
+  };
+}
+
+
 export function v1DefaultPlacement(key: V1DesignKey): V1QRPlacement {
   return {x:key.endsWith("_left") ? 29 : 71,y:55,size:35};
 }
