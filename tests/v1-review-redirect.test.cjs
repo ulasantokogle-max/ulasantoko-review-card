@@ -50,3 +50,23 @@ test("V1 active route is fail-closed and does not use a name-based search", () =
   assert.doesNotMatch(source, /places:searchText|textQuery/);
 });
 
+
+test("legacy Google Maps short links are preserved for existing V1 cards",()=>{
+  assert.equal(isApproved("https://maps.app.goo.gl/AbCdEf123456789XY"),true);
+  for(const url of [
+    "http://maps.app.goo.gl/AbCdEf123456789XY",
+    "https://maps.app.goo.gl.evil.example/AbCdEf123456789XY",
+    "https://user:password@maps.app.goo.gl/AbCdEf123456789XY",
+    "https://maps.app.goo.gl/short",
+    "https://maps.app.goo.gl/AbCdEf123456789XY?next=https://evil.example",
+    "https://maps.app.goo.gl/AbCdEf123456789XY#evil",
+    "https://maps.app.goo.gl//AbCdEf123456789XY",
+  ]) assert.equal(isApproved(url),false,url);
+});
+test("legacy 4-digit V1 card codes remain readable on redirect and activation",()=>{
+  const activationApi = fs.readFileSync(path.join(__dirname,"../app/api/cards/activate/route.ts"),"utf8");
+  const activationUi = fs.readFileSync(path.join(__dirname,"../components/ActivationForm.tsx"),"utf8");
+  for(const input of [source,activationApi,activationUi]){
+    assert.ok(input.includes("^ULAS-\\d{4,}$"),"V1 legacy minimum 4-digit code supported");
+  }
+});
