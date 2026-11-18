@@ -83,3 +83,67 @@ test("ZIP export produces a valid local and central directory",()=>{
     assert.ok(text.includes("ULAS-00207-depan.png"));
   });
 });
+
+test("uploaded templates mask their old right-hand QR when new V1 QR is on the left",()=>{
+  const defaultCover=layouts.v1DefaultTemplateQrCleanup("navy_left");
+  assert.deepEqual(defaultCover,{enabled:true,x:71,y:55,size:31,color:"#ffffff"});
+  assert.deepEqual(layouts.v1DefaultTemplateQrCleanup("white_right"),
+    {enabled:true,x:29,y:55,size:31,color:"#ffffff"});
+  const safe=layouts.v1SafeTemplateQrCleanup({enabled:true,x:999,y:-10,size:90,color:"invalid"});
+  assert.equal(safe.size,43);
+  assert.equal(safe.color,"#ffffff");
+  assert.ok(safe.x<=100-safe.size/2 && safe.y>=safe.size/2);
+});
+test("same template QR cleanup is used by live preview, HD PNG and print exports",()=>{
+  assert.match(page,/templateQrCleanup:templates\[selectedDesign\]\?templateCleanup\[selectedDesign\]:undefined/);
+  assert.match(page,/templateQrCleanup:templates\[design\]\?templateCleanup\[design\]:undefined/);
+  assert.match(page,/setTemplateCleanup/);
+  assert.match(page,/changeDesign\(key\)/);
+  assert.match(page,/Tutup QR lama yang ada di gambar template/);
+  assert.match(exportsSource,/if\(settings\.templateQrCleanup\?\.enabled\)/);
+  assert.match(exportsSource,/v1SafeTemplateQrCleanup\(settings\.templateQrCleanup\)/);
+  assert.ok(exportsSource.indexOf("v1SafeTemplateQrCleanup(settings.templateQrCleanup)")
+    < exportsSource.indexOf("const qr=await qrCanvas"));
+});
+test("renderer masks uploaded QR before drawing exactly one new verified V1 QR",async()=>{
+  const logs=[];
+  const previousDocument=global.document;
+  const previousImage=global.Image;
+  const context={
+    fillRect(...args){logs.push({op:"fillRect",args,color:this.fillStyle});},
+    drawImage(...args){logs.push({op:"drawImage",source:args[0]});},
+    fillText(){}, strokeRect(){}, save(){}, restore(){}, beginPath(){},
+    arc(){},stroke(){},createLinearGradient(){return {addColorStop(){}};}
+  };
+  global.document={createElement:(tag)=>{
+    assert.equal(tag,"canvas");
+    return {width:0,height:0,getContext:()=>context};
+  }};
+  global.Image=class {
+    width=1000;height=1000;onload=null;
+    set src(_value){if(this.onload)this.onload();}
+  };
+  try{
+    const mod=loadTypescript("lib/v1-designer-export.ts",{
+      "qrcode":{toCanvas:async()=>{}},
+      "@/lib/v1-designer-layout":layouts,
+    });
+    await mod.renderV1Card({
+      card:{code:"ULAS-00206",url:layouts.v1CardUrl("ULAS-00206")},
+      design:"navy_left",mode:"black",pixels:1000,
+      placement:layouts.v1DefaultPlacement("navy_left"),
+      templateDataUrl:"data:image/png;base64,not-used-in-stub",
+      templateQrCleanup:layouts.v1DefaultTemplateQrCleanup("navy_left"),
+    });
+    const fillOld=logs.findIndex(x=>x.op==="fillRect"&&x.args[2]===310);
+    const qrDraw=logs.map((x,i)=>x.op==="drawImage"?i:-1).filter(i=>i>=0);
+    assert.equal(qrDraw.length,2,"template background followed by one newly encoded QR");
+    assert.ok(fillOld>qrDraw[0]&&fillOld<qrDraw[1],"old embedded QR must be hidden before new QR is drawn");
+    const mask=logs[fillOld];
+    assert.equal(mask.color,"#ffffff");
+    assert.deepEqual(mask.args,[555,395,310,310]);
+  }finally{
+    if(previousDocument===undefined)delete global.document; else global.document=previousDocument;
+    if(previousImage===undefined)delete global.Image; else global.Image=previousImage;
+  }
+});
