@@ -116,7 +116,7 @@ export default function BulkDesignerV1Page() {
     if(!first || busy)return;
     setBusy(true);setError("");setProgress("Memvalidasi kartu V1...");
     try{
-      await verifyCodes(cards.map(c=>c.code));
+      await verifyCodes(cards.map(c => c.code));
       const canvas=await renderV1Card(renderSettings(first,side));
       v1Download(await v1CanvasPng(canvas),first.code+"-"+side+"-HD.png");
       setProgress("PNG HD telah diminta untuk diunduh (1417 × 1417 px).");
@@ -127,7 +127,7 @@ export default function BulkDesignerV1Page() {
     if(!cards.length||busy)return;
     setBusy(true);setError("");setProgress("Memvalidasi semua kode kartu ke database V1...");
     try{
-      await verifyCodes(cards.map(c=>c.code));
+      await verifyCodes(cards.map(c => c.code));
       const files:{name:string;bytes:Uint8Array}[]=[];
       for(let i=0;i<cards.length;i++){
         const card=cards[i];
@@ -155,7 +155,7 @@ export default function BulkDesignerV1Page() {
     setBusy(true);setError("");setProgress("Memeriksa kode kartu V1...");
     win.document.write("<!doctype html><html><head><title>Menyiapkan cetak V1...</title></head><body style='font-family:Arial'>Memvalidasi kartu V1...</body></html>");
     try{
-      await verifyCodes(cards.map(c=>c.code));
+      await verifyCodes(cards.map(c => c.code));
       const layout=v1PageLayout(paper);
       const pageHtml:string[]=[];
       for(let i=0;i<cards.length;i+=layout.cardsPerPage){
