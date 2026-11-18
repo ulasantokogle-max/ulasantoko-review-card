@@ -145,9 +145,11 @@ test("renderer masks uploaded QR before drawing exactly one new verified V1 QR",
     assert.deepEqual(mask.args,[540,430,310,310]);
     assert.ok(logs.some(x=>x.op==="fillText"&&x.args[0]==="TAP NFC"),"visible Tap NFC picture and text must be rendered");
     assert.ok(logs.some(x=>x.op==="strokeRect"),"Tap NFC phone icon must be drawn");
-    const whiteBacking=logs.find(x=>x.op==="fillRect"&&x.args[2]===270);
-    assert.ok(whiteBacking,"uploaded QR background must clear the existing template QR inside the blue frame");
-    assert.deepEqual(whiteBacking.args,[175,445,270,270]);
+    // No oversized white backing may appear outside a QR on uploaded artwork.
+    // The generated QR image itself is opaque and retains its own quiet zone.
+    assert.ok(!logs.some(x=>x.op==="fillRect"&&x.args[2]>=240&&x.args[2]<=270),
+      "an uploaded template must not get an additional white QR outline");
+    assert.ok(qrDraw[1]>fillOld,"the generated QR is rendered over the template after cleanup");
     const sourceCodeMask=logs.find(x=>x.op==="fillRect"&&x.args[0]===800);
     assert.ok(sourceCodeMask,"embedded ULAS code on uploaded artwork must be hidden");
     assert.deepEqual(sourceCodeMask.args,[800,912,165,55]);
@@ -189,4 +191,19 @@ test("V1 card renderer hides card code but preserves the full verified QR URL",(
   assert.equal(layouts.v1DefaultPlacement("navy_left").size,35,
     "built-in QR designs keep their prior default size");
   assert.match(page,/v1UploadedTemplatePlacement\(key\)/);
+});
+
+test("uploaded artwork uses the QR canvas only, with quiet zone for scanning",async()=>{
+  const source=read("lib/v1-designer-export.ts");
+  assert.match(source,/width:720,margin:4,errorCorrectionLevel:"H"/);
+  assert.match(source,/light:"#ffffff"/);
+  assert.doesNotMatch(source,/light:"#0000"/);
+  assert.match(source,/if\(!custom\)\{\s*const whiteBacking=px\+size\*0\.012/);
+  assert.doesNotMatch(source,/Math\.min\(29,position\.size\+3\)/);
+  assert.match(source,/ctx\.drawImage\(qr,size\*position\.x\/100-px\/2,size\*position\.y\/100-px\/2,px,px\)/);
+  // Both the preview and every PNG/ZIP/PDF export share the renderer.
+  assert.match(page,/renderV1Card\(\{/);
+  assert.match(page,/renderV1Card\(renderSettings\(first,side\)\)/);
+  assert.match(page,/renderV1Card\(renderSettings\(card,face\)\)/);
+  assert.match(page,/renderV1Card\(renderSettings\(card,"front",1417\)\)/);
 });
