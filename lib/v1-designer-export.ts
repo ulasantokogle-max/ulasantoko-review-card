@@ -149,9 +149,13 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
   const position=v1SafePlacement(settings.placement);
   const qr=await qrCanvas(card.url,mode);
   const px=size*position.size/100;
+  // On uploaded art a QR can also be baked into the *same* blue frame.
+  // Clear its interior (but not the blue outline) before drawing the new
+  // validated V1 QR, with sufficient white quiet zone for phone cameras.
+  const whiteBacking=custom?size*Math.min(29,position.size+3)/100:px+size*0.012;
   ctx.fillStyle="#ffffff";
-  ctx.fillRect(size*position.x/100-px/2-size*0.006,
-    size*position.y/100-px/2-size*0.006,px+size*0.012,px+size*0.012);
+  ctx.fillRect(size*position.x/100-whiteBacking/2,
+    size*position.y/100-whiteBacking/2,whiteBacking,whiteBacking);
   ctx.drawImage(qr,size*position.x/100-px/2,size*position.y/100-px/2,px,px);
   // Always print the exact immutable card code, never an activation PIN.
   ctx.fillStyle=custom?"#152e51":(preset.dark?"#eaf1ff":"#15345e");
