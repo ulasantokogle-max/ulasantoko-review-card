@@ -86,9 +86,9 @@ test("ZIP export produces a valid local and central directory",()=>{
 
 test("uploaded templates mask their old right-hand QR when new V1 QR is on the left",()=>{
   const defaultCover=layouts.v1DefaultTemplateQrCleanup("navy_left");
-  assert.deepEqual(defaultCover,{enabled:true,x:71,y:55,size:31,color:"#ffffff"});
+  assert.deepEqual(defaultCover,{enabled:true,x:69.5,y:58.5,size:31,color:"#ffffff"});
   assert.deepEqual(layouts.v1DefaultTemplateQrCleanup("white_right"),
-    {enabled:true,x:29,y:55,size:31,color:"#ffffff"});
+    {enabled:true,x:30.5,y:58.5,size:31,color:"#ffffff"});
   const safe=layouts.v1SafeTemplateQrCleanup({enabled:true,x:999,y:-10,size:90,color:"invalid"});
   assert.equal(safe.size,43);
   assert.equal(safe.color,"#ffffff");
@@ -98,7 +98,7 @@ test("same template QR cleanup is used by live preview, HD PNG and print exports
   assert.match(page,/templateQrCleanup:templates\[selectedDesign\]\?templateCleanup\[selectedDesign\]:undefined/);
   assert.match(page,/templateQrCleanup:templates\[design\]\?templateCleanup\[design\]:undefined/);
   assert.match(page,/setTemplateCleanup/);
-  assert.match(page,/changeDesign\(key\)/);
+  assert.match(page,/v1UploadedTemplatePlacement\(key\)/);
   assert.match(page,/Tutup QR lama yang ada di gambar template/);
   assert.match(exportsSource,/if\(settings\.templateQrCleanup\?\.enabled\)/);
   assert.match(exportsSource,/v1SafeTemplateQrCleanup\(settings\.templateQrCleanup\)/);
@@ -112,7 +112,7 @@ test("renderer masks uploaded QR before drawing exactly one new verified V1 QR",
   const context={
     fillRect(...args){logs.push({op:"fillRect",args,color:this.fillStyle});},
     drawImage(...args){logs.push({op:"drawImage",source:args[0]});},
-    fillText(){}, strokeRect(){}, save(){}, restore(){}, beginPath(){},
+    fillText(...args){logs.push({op:"fillText",args});}, strokeRect(...args){logs.push({op:"strokeRect",args});}, save(){}, restore(){}, beginPath(){},
     arc(){},stroke(){},createLinearGradient(){return {addColorStop(){}};}
   };
   global.document={createElement:(tag)=>{
@@ -131,9 +131,10 @@ test("renderer masks uploaded QR before drawing exactly one new verified V1 QR",
     await mod.renderV1Card({
       card:{code:"ULAS-00206",url:layouts.v1CardUrl("ULAS-00206")},
       design:"navy_left",mode:"black",pixels:1000,
-      placement:layouts.v1DefaultPlacement("navy_left"),
+      placement:layouts.v1UploadedTemplatePlacement("navy_left"),
       templateDataUrl:"data:image/png;base64,not-used-in-stub",
       templateQrCleanup:layouts.v1DefaultTemplateQrCleanup("navy_left"),
+      showTemplateNfc:true,
     });
     const fillOld=logs.findIndex(x=>x.op==="fillRect"&&x.args[2]===310);
     const qrDraw=logs.map((x,i)=>x.op==="drawImage"?i:-1).filter(i=>i>=0);
@@ -141,9 +142,34 @@ test("renderer masks uploaded QR before drawing exactly one new verified V1 QR",
     assert.ok(fillOld>qrDraw[0]&&fillOld<qrDraw[1],"old embedded QR must be hidden before new QR is drawn");
     const mask=logs[fillOld];
     assert.equal(mask.color,"#ffffff");
-    assert.deepEqual(mask.args,[555,395,310,310]);
+    assert.deepEqual(mask.args,[540,430,310,310]);
+    assert.ok(logs.some(x=>x.op==="fillText"&&x.args[0]==="TAP NFC"),"visible Tap NFC picture and text must be rendered");
+    assert.ok(logs.some(x=>x.op==="strokeRect"),"Tap NFC phone icon must be drawn");
+    const whiteBacking=logs.find(x=>x.op==="fillRect"&&x.args[2]===290);
+    assert.ok(whiteBacking,"uploaded QR background must clear the existing template QR inside the blue frame");
+    assert.deepEqual(whiteBacking.args,[165,435,290,290]);
   }finally{
     if(previousDocument===undefined)delete global.document; else global.document=previousDocument;
     if(previousImage===undefined)delete global.Image; else global.Image=previousImage;
   }
+});
+
+test("uploaded QR fits completely below the five stars and inside the original frame",()=>{
+  const left=layouts.v1UploadedTemplatePlacement("navy_left");
+  const right=layouts.v1UploadedTemplatePlacement("white_right");
+  assert.deepEqual(left,{x:31,y:58,size:26});
+  assert.deepEqual(right,{x:69,y:58,size:26});
+  assert.ok(left.y-left.size/2>=45,"QR quiet-zone starts below the five-star row");
+  assert.ok(left.x-left.size/2>16,"QR stays inside blue frame left edge");
+  assert.ok(left.x+left.size/2<47,"QR stays inside blue frame right edge");
+  assert.deepEqual(layouts.v1DefaultPlacement("navy_left"),{x:29,y:55,size:35},
+    "existing built-in design defaults must remain unchanged");
+});
+test("template NFC flag is respected consistently by preview, PNG, ZIP and print",()=>{
+  assert.match(page,/showTemplateNfc:templates\[selectedDesign\]\?\(templateNfc\[selectedDesign\]\?\?true\):false/);
+  assert.match(page,/showTemplateNfc:templates\[design\]\?\(templateNfc\[design\]\?\?true\):false/);
+  assert.match(page,/setTemplateNfc/);
+  assert.match(page,/Tampilkan gambar Tap NFC di area kanan/);
+  assert.match(exportsSource,/if\(settings\.showTemplateNfc===true\)/);
+  assert.match(exportsSource,/drawTemplateTapNfc\(ctx,size\*cleanup\.x\/100,size\*cleanup\.y\/100,size\)/);
 });

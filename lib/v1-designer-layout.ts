@@ -29,8 +29,9 @@ export type V1TemplateQrCleanup = {
 export function v1DefaultTemplateQrCleanup(key: V1DesignKey): V1TemplateQrCleanup {
   return {
     enabled: true,
-    x: key.endsWith("_left") ? 71 : 29,
-    y: 55,
+    // Keep the mask below the star row of the uploaded Google-review artwork.
+    x: key.endsWith("_left") ? 69.5 : 30.5,
+    y: 58.5,
     size: 31,
     color: "#ffffff",
   };
@@ -50,6 +51,13 @@ export function v1SafeTemplateQrCleanup(v: V1TemplateQrCleanup): V1TemplateQrCle
 
 export function v1DefaultPlacement(key: V1DesignKey): V1QRPlacement {
   return {x:key.endsWith("_left") ? 29 : 71,y:55,size:35};
+}
+/** A 26%-width QR fits inside the ~31% printed QR frame of uploaded V1 art.
+ * Unlike built-in presets this never overlaps the Google five-star row.
+ * It only applies to user-uploaded templates; defaults for built-ins stay as-is.
+ */
+export function v1UploadedTemplatePlacement(key: V1DesignKey): V1QRPlacement {
+  return {x:key.endsWith("_left") ? 31 : 69,y:58,size:26};
 }
 export function v1SafePlacement(p: V1QRPlacement): V1QRPlacement {
   const size = Math.max(25, Math.min(43, Number(p.size) || 35));

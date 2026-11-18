@@ -6,6 +6,7 @@ export type V1RenderSettings = {
   card:V1CardData; design:V1DesignKey; mode:V1QRMode;
   placement:V1QRPlacement; templateDataUrl?:string;
   templateQrCleanup?:V1TemplateQrCleanup;
+  showTemplateNfc?:boolean;
   pixels?:number;
 };
 
@@ -60,6 +61,33 @@ function drawNfc(ctx:CanvasRenderingContext2D,x:number,y:number,s:number,color:s
   typography(ctx,s,21,true);ctx.fillText("TAP NFC",x,y+s*0.09);
   ctx.restore();
 }
+/** Dedicated vector NFC picture for uploaded V1 artwork. This is a visual
+ * instruction only: the actual NFC chip must still be physically encoded.
+ * All coordinates are relative to the original 10x10 cm card.
+ */
+function drawTemplateTapNfc(ctx:CanvasRenderingContext2D,x:number,y:number,s:number) {
+  ctx.save();
+  const blue="#135cb1";
+  ctx.strokeStyle=blue;
+  ctx.fillStyle=blue;
+  ctx.lineWidth=Math.max(2,s*.006);
+  ctx.lineCap="round";
+  // A recognizable phone silhouette on the right-hand side of the separator.
+  ctx.strokeRect(x-s*.075,y-s*.085,s*.075,s*.13);
+  ctx.fillRect(x-s*.05,y+s*.027,s*.025,s*.005);
+  // Three wireless tap arcs on the right of the phone.
+  for(let i=0;i<3;i++){
+    ctx.beginPath();
+    ctx.arc(x+s*.006,y-s*.017,s*(.029+i*.018),-Math.PI/2,Math.PI/2);
+    ctx.stroke();
+  }
+  ctx.textAlign="center";
+  ctx.fillStyle="#123b78";
+  typography(ctx,s,29,true);
+  ctx.fillText("TAP NFC",x+s*.006,y+s*.115);
+  ctx.restore();
+}
+
 /** Browser-only: templates and original PIN CSV are never sent to a server. */
 export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvasElement> {
   const {card,design,mode}=settings;
@@ -88,6 +116,11 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
         size*cleanup.y/100-side/2,
         side,side
       );
+      // Draw NFC only on the selected template's cleared opposite side.
+      // It is never baked into another project's template or into the QR code.
+      if(settings.showTemplateNfc===true){
+        drawTemplateTapNfc(ctx,size*cleanup.x/100,size*cleanup.y/100,size);
+      }
     }
   } else {
     ctx.fillStyle=preset.dark?"#112e57":"#ffffff";ctx.fillRect(0,0,size,size);
@@ -116,9 +149,13 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
   const position=v1SafePlacement(settings.placement);
   const qr=await qrCanvas(card.url,mode);
   const px=size*position.size/100;
+  // On uploaded art a QR can also be baked into the *same* blue frame.
+  // Clear its interior (but not the blue outline) before drawing the new
+  // validated V1 QR, with sufficient white quiet zone for phone cameras.
+  const whiteBacking=custom?size*Math.min(29,position.size+3)/100:px+size*0.012;
   ctx.fillStyle="#ffffff";
-  ctx.fillRect(size*position.x/100-px/2-size*0.006,
-    size*position.y/100-px/2-size*0.006,px+size*0.012,px+size*0.012);
+  ctx.fillRect(size*position.x/100-whiteBacking/2,
+    size*position.y/100-whiteBacking/2,whiteBacking,whiteBacking);
   ctx.drawImage(qr,size*position.x/100-px/2,size*position.y/100-px/2,px,px);
   // Always print the exact immutable card code, never an activation PIN.
   ctx.fillStyle=custom?"#152e51":(preset.dark?"#eaf1ff":"#15345e");
