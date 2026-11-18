@@ -125,7 +125,7 @@ test("renderer masks uploaded QR before drawing exactly one new verified V1 QR",
   };
   try{
     const mod=loadTypescript("lib/v1-designer-export.ts",{
-      "qrcode":{toCanvas:async()=>{}},
+      "qrcode":{default:{toCanvas:async()=>{}}},
       "@/lib/v1-designer-layout":layouts,
     });
     await mod.renderV1Card({
