@@ -25,7 +25,7 @@ test("V1 designer supports four locally uploaded templates and front/back previe
 test("V1 designer enforces verification and never exports a PIN",()=>{
   assert.match(page,/parseV1BulkCsv\(text\)/);
   assert.match(page,/await verifyCodes\(codes\)/);
-  assert.match(page,/await verifyCodes\(cards\.map\(c=>c\.code\)\)/);
+  assert.match(page,/await verifyCodes\(cards\.map\(c => c\.code\)\)/);
   assert.match(page,/fetch\("\/api\/v1\/provider\/session"/);
   assert.match(page,/fetch\("\/api\/v1\/provider\/validate-cards"/);
   assert.doesNotMatch(page,/activation_pin/);
@@ -61,7 +61,7 @@ test("export module generates real PNG, client-side ZIP and A3+ print options",(
   assert.match(page,/v1MirrorSlot\(j,paper,duplexFlip\)/);
   assert.match(page,/329mm 483mm/);
   assert.match(page,/width:100mm/);
-  assert.match(page,/await verifyCodes\(cards\.map\(c=>c\.code\)\)/);
+  assert.match(page,/await verifyCodes\(cards\.map\(c => c\.code\)\)/);
 });
 test("ZIP export produces a valid local and central directory",()=>{
   const mod=loadTypescript("lib/v1-designer-export.ts",{
