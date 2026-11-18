@@ -2,9 +2,9 @@
 import {useEffect,useState} from "react";
 import {parseV1BulkCsv} from "@/lib/v1-bulk-csv";
 import {
-  V1_DESIGNS,v1CardUrl,v1DefaultPlacement,v1PageLayout,v1MirrorSlot,
+  V1_DESIGNS,v1CardUrl,v1DefaultPlacement,v1DefaultTemplateQrCleanup,v1PageLayout,v1MirrorSlot,
   type V1CardData,type V1DesignKey,type V1QRMode,type V1QRPlacement,
-  type V1Side,type V1Paper,type V1Flip
+  type V1Side,type V1Paper,type V1Flip,type V1TemplateQrCleanup
 } from "@/lib/v1-designer-layout";
 import {renderV1Card,v1CanvasPng,v1Download,v1Zip} from "@/lib/v1-designer-export";
 
@@ -16,6 +16,7 @@ export default function BulkDesignerV1Page() {
   const [frontDesign,setFrontDesign]=useState<V1DesignKey>("navy_right");
   const [backDesign,setBackDesign]=useState<V1DesignKey>("navy_left");
   const [templates,setTemplates]=useState<Partial<Record<V1DesignKey,string>>>({});
+  const [templateCleanup,setTemplateCleanup]=useState<Partial<Record<V1DesignKey,V1TemplateQrCleanup>>>({});
   const [frontPosition,setFrontPosition]=useState<V1QRPlacement>(v1DefaultPlacement("navy_right"));
   const [backPosition,setBackPosition]=useState<V1QRPlacement>(v1DefaultPlacement("navy_left"));
   const [mode,setMode]=useState<V1QRMode>("rainbow");
@@ -45,11 +46,13 @@ export default function BulkDesignerV1Page() {
     setPreviewError("");
     void renderV1Card({
       card:first,design:selectedDesign,mode,placement:selectedPlacement,
-      templateDataUrl:templates[selectedDesign],pixels:650,
+      templateDataUrl:templates[selectedDesign],
+      templateQrCleanup:templates[selectedDesign]?templateCleanup[selectedDesign]:undefined,
+      pixels:650,
     }).then(canvas=>{if(!cancelled)setPreview(canvas.toDataURL("image/png"));})
       .catch(e=>{if(!cancelled)setPreviewError(e instanceof Error?e.message:"Preview gagal.");});
     return ()=>{cancelled=true;};
-  },[first,selectedDesign,mode,selectedPlacement,templates]);
+  },[first,selectedDesign,mode,selectedPlacement,templates,templateCleanup]);
 
   async function verifyCodes(codes:string[]){
     const response=await fetch("/api/v1/provider/validate-cards",{
@@ -89,7 +92,13 @@ export default function BulkDesignerV1Page() {
         reader.onerror=()=>reject(new Error("Gagal membaca template."));
         reader.readAsDataURL(file);
       });
-      setTemplates(old=>({...old,[key]:encoded}));setError("");
+      setTemplates(old=>({...old,[key]:encoded}));
+      // Default to covering the QR already printed in uploaded artwork.
+      // The operator can adjust or disable this if the template is QR-free.
+      setTemplateCleanup(old=>({...old,[key]:v1DefaultTemplateQrCleanup(key)}));
+      // The uploaded design becomes the active design for the selected side.
+      changeDesign(key);
+      setError("");
     }catch(e){setError(e instanceof Error?e.message:"Template gagal diproses.");}
   }
   function changeDesign(next:V1DesignKey){
@@ -98,6 +107,16 @@ export default function BulkDesignerV1Page() {
     }else{
       setBackDesign(next);setBackPosition(v1DefaultPlacement(next));
     }
+  }
+  function changeTemplateCleanup(patch:Partial<V1TemplateQrCleanup>){
+    setTemplateCleanup(old=>({
+      ...old,
+      [selectedDesign]:{
+        ...v1DefaultTemplateQrCleanup(selectedDesign),
+        ...old[selectedDesign],
+        ...patch,
+      },
+    }));
   }
   function positionValue(field:keyof V1QRPlacement,value:number){
     const fn=(old:V1QRPlacement)=>({...old,[field]:value});
@@ -110,6 +129,7 @@ export default function BulkDesignerV1Page() {
       card,design,mode,pixels,
       placement:face==="front"?frontPosition:backPosition,
       templateDataUrl:templates[design],
+      templateQrCleanup:templates[design]?templateCleanup[design]:undefined,
     };
   }
   async function downloadFirstPng(){
@@ -197,6 +217,8 @@ export default function BulkDesignerV1Page() {
   }
 
   const currentPreset=V1_DESIGNS.find(d=>d.key===selectedDesign)!;
+  const currentCleanup=templates[selectedDesign] ?
+    (templateCleanup[selectedDesign]??v1DefaultTemplateQrCleanup(selectedDesign)) : undefined;
   const sheet=v1PageLayout(paper);
   return <main className="min-h-screen bg-gray-50 px-4 py-8 text-slate-900">
     <section className="mx-auto max-w-7xl rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-8">
@@ -230,7 +252,10 @@ export default function BulkDesignerV1Page() {
                   <input aria-label={"Upload "+design.title} className="mt-1 block w-full text-[10px]" type="file" accept="image/png,image/jpeg"
                     onChange={e=>{const file=e.target.files?.[0];if(file)void uploadTemplate(design.key,file);}}/>
                 </label>
-                {templates[design.key] && <button className="mt-1 text-xs text-blue-700 underline" onClick={()=>setTemplates(old=>({...old,[design.key]:undefined}))}>Pakai desain bawaan</button>}
+                {templates[design.key] && <button className="mt-1 text-xs text-blue-700 underline" onClick={()=>{
+                  setTemplates(old=>({...old,[design.key]:undefined}));
+                  setTemplateCleanup(old=>({...old,[design.key]:undefined}));
+                }}>Pakai desain bawaan</button>}
               </div>)}
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
@@ -263,6 +288,45 @@ export default function BulkDesignerV1Page() {
               )}
               <button className="mt-3 text-xs text-blue-700 underline" onClick={()=>changeDesign(selectedDesign)}>Reset posisi QR</button>
             </div>
+            {currentCleanup && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+              <h3 className="text-sm font-bold text-amber-950">Tutup QR lama yang ada di gambar template</h3>
+              <p className="mt-1 text-xs text-amber-900">
+                Agar tidak muncul dua QR, sistem menutup QR yang sudah tercetak di file gambar
+                sebelum menambahkan satu QR aktif V1. Area penutup dapat dipindahkan agar
+                tidak menutupi bintang atau teks.
+              </p>
+              <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-amber-950">
+                <input type="checkbox" checked={currentCleanup.enabled}
+                  onChange={e=>changeTemplateCleanup({enabled:e.target.checked})}/>
+                Template ini sudah memiliki QR lama — tutup QR lama
+              </label>
+              {currentCleanup.enabled && <>
+                {([["x","Posisi QR lama horizontal (X)",15,85],
+                   ["y","Posisi QR lama vertikal (Y)",25,80],
+                   ["size","Ukuran area penutup",24,43]] as const).map(([field,label,min,max])=>
+                  <label className="mt-3 block text-xs text-amber-950" key={field}>
+                    {label} — <strong>{currentCleanup[field]}%</strong>
+                    <input className="mt-1 block w-full" type="range" min={min} max={max}
+                      value={currentCleanup[field]}
+                      onChange={e=>changeTemplateCleanup({[field]:Number(e.target.value)})}/>
+                  </label>
+                )}
+                <label className="mt-3 flex items-center justify-between text-xs text-amber-950">
+                  Warna area penghapus (samakan dengan latar)
+                  <input aria-label="Warna penutup QR lama" type="color"
+                    value={currentCleanup.color}
+                    onChange={e=>changeTemplateCleanup({color:e.target.value})}/>
+                </label>
+                <button className="mt-3 text-xs text-blue-700 underline"
+                  onClick={()=>setTemplateCleanup(old=>({...old,[selectedDesign]:v1DefaultTemplateQrCleanup(selectedDesign)}))}>
+                  Reset penutup QR lama
+                </button>
+              </>}
+              <p className="mt-2 text-xs text-amber-900">
+                Preview dan semua hasil PNG/ZIP/PDF memakai pengaturan yang sama.
+                Pastikan hanya ada satu QR, lalu tes scan sebelum cetak massal.
+              </p>
+            </div>}
             <label className="mt-4 flex items-center gap-2 text-sm">
               <input type="checkbox" checked={doubleSided} onChange={e=>setDoubleSided(e.target.checked)}/>
               Cetak bolak-balik (dua sisi, QR & NFC dapat bertukar posisi)
