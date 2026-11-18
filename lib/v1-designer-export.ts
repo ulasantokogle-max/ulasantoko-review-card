@@ -157,15 +157,14 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
   ctx.fillRect(size*position.x/100-whiteBacking/2,
     size*position.y/100-whiteBacking/2,whiteBacking,whiteBacking);
   ctx.drawImage(qr,size*position.x/100-px/2,size*position.y/100-px/2,px,px);
-  // Always print the exact immutable card code, never an activation PIN.
-  ctx.fillStyle=custom?"#152e51":(preset.dark?"#eaf1ff":"#15345e");
+  // The verified card code remains in CSV and inside the generated QR URL,
+  // but is intentionally never printed onto the card artwork.
+  // Uploaded templates sometimes have their own code baked into the bottom
+  // right corner: cover only that small area, not the YukReview logo beside it.
   if(custom){
-    ctx.fillStyle="rgba(255,255,255,.96)";
-    ctx.fillRect(size*.73,size*.91,size*.22,size*.052);
-    ctx.fillStyle="#112e57";
+    ctx.fillStyle="#ffffff";
+    ctx.fillRect(size*.80,size*.912,size*.165,size*.055);
   }
-  ctx.textAlign="right";typography(ctx,size,17,true);
-  ctx.fillText(card.code,size*.92,size*.945);
   return canvas;
 }
 export function v1CanvasPng(canvas:HTMLCanvasElement):Promise<Blob> {
