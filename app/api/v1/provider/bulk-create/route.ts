@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isProviderAuthenticated } from "@/lib/v1-provider-auth";
-import { checkV1RateLimit } from "@/lib/v1-rate-limit";
+import { getV1RateLimitStatus } from "@/lib/v1-rate-limit";
 import { generateActivationPin, hashActivationPin } from "@/lib/pin";
 import { v1SupabaseServer, canIssueNewV1Cards, hasDedicatedV1Database } from "@/lib/v1-supabase";
 
@@ -27,8 +27,14 @@ export async function POST(request: NextRequest) {
   }
   try {
     const db = v1SupabaseServer();
-    if (!await checkV1RateLimit(db, request, "create")) {
-      return NextResponse.json({ message: "Limit percobaan tercapai atau layanan database belum tersedia." },
+    const throttle = await getV1RateLimitStatus(db, request, "create");
+    if (throttle === "unavailable") {
+      return NextResponse.json({
+        message: "Layanan pengamanan Bulk Create V1 belum tersedia. Periksa koneksi Supabase V1 dan coba lagi setelah pulih.",
+      }, { status: 503, headers: noStore });
+    }
+    if (throttle === "limited") {
+      return NextResponse.json({ message: "Batas percobaan Bulk Create V1 tercapai. Coba kembali setelah 15 menit." },
         { status: 429, headers: { ...noStore, "Retry-After": "900" } });
     }
     if (!await canIssueNewV1Cards()) {
