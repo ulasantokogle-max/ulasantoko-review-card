@@ -16,6 +16,9 @@ on:
       - "tests/v1-readiness.test.cjs"
       - "tests/v1-cutover-isolation.test.cjs"
       - "tests/v1-bulk-create-rate-limit.test.cjs"
+      - "tests/v1-designer-preview.test.cjs"
+      - "lib/v1-designer-layout.ts"
+      - "lib/v1-designer-export.ts"
       - "app/api/cards/create/route.ts"
       - "app/api/cards/activate/route.ts"
       - "app/api/v1/provider/cards/route.ts"
@@ -34,4 +37,4 @@ jobs:
         with:
           node-version: 20
       - run: npm install --no-audit --no-fund
-      - run: node --test tests/v1-provider-bulk-menus.test.cjs tests/v1-bulk-csv.test.cjs tests/v1-project-guard.test.cjs tests/v1-readiness.test.cjs tests/v1-cutover-isolation.test.cjs tests/v1-bulk-create-rate-limit.test.cjs
+      - run: node --test tests/v1-provider-bulk-menus.test.cjs tests/v1-bulk-csv.test.cjs tests/v1-project-guard.test.cjs tests/v1-readiness.test.cjs tests/v1-cutover-isolation.test.cjs tests/v1-bulk-create-rate-limit.test.cjs tests/v1-designer-preview.test.cjs
