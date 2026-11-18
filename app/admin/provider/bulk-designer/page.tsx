@@ -136,7 +136,15 @@ export default function BulkDesignerV1Page() {
       {checking ? <p className="mt-5">Memeriksa sesi Provider...</p>
         : !authenticated ? <p className="mt-5">Silakan <a href="/admin/provider" className="text-blue-700 underline">login Provider</a> terlebih dahulu.</p>
         : <>
-          <label htmlFor="csv" className="mt-6 block text-sm font-semibold">CSV kartu V1</label>
+          <section className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm">
+            <p className="font-semibold text-blue-900">Bulk Designer untuk mencetak, bukan membuat kartu.</p>
+            <p className="mt-2 text-blue-900">Langkah 1: buat 1–100 kartu melalui Bulk Create, lalu unduh CSV + PIN.</p>
+            <p className="mt-1 text-blue-900">Langkah 2: pilih CSV hasil unduhan pada halaman ini untuk menyiapkan desain QR/NFC.</p>
+            <a className="mt-3 inline-block rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white" href="/admin/provider/bulk-create">
+              Buka Bulk Create V1
+            </a>
+          </section>
+          <label htmlFor="csv" className="mt-6 block text-sm font-semibold">Upload CSV hasil Bulk Create V1</label>
           <input id="csv" type="file" accept=".csv,text/csv" className="my-3 block w-full"
             onChange={e => {const file=e.target.files?.[0]; if(file) void loadCsv(file);}}/>
           <label htmlFor="color" className="block text-sm font-semibold">Pilihan QR</label>
@@ -158,7 +166,11 @@ export default function BulkDesignerV1Page() {
             </select>
             <p className="mb-3 text-xs text-gray-600">Wajib uji 1 lembar dan cocokkan QR/NFC kedua sisi dengan kode kartu yang sama sebelum cetak massal.</p>
           </>}
-          <p className="mb-4 text-sm text-gray-600">{cards.length} kartu siap didesain.</p>
+          <p className="mb-4 text-sm text-gray-600">
+            {cards.length > 0
+              ? `${cards.length} kartu siap didesain. Pilih Buka Desain / Simpan PDF.`
+              : "Belum ada kartu siap didesain. Unggah CSV yang diunduh dari Bulk Create V1 terlebih dahulu."}
+          </p>
           <button disabled={!cards.length || busy} onClick={printCards}
             className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white disabled:opacity-50">
             {busy ? "Menyiapkan..." : "Buka Desain / Simpan PDF"}
