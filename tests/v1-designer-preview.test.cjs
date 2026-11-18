@@ -163,8 +163,8 @@ test("renderer masks uploaded QR before drawing exactly one new verified V1 QR",
 test("uploaded QR fits completely below the five stars and inside the original frame",()=>{
   const left=layouts.v1UploadedTemplatePlacement("navy_left");
   const right=layouts.v1UploadedTemplatePlacement("white_right");
-  assert.deepEqual(left,{x:31,y:58,size:26});
-  assert.deepEqual(right,{x:69,y:58,size:26});
+  assert.deepEqual(left,{x:31,y:58,size:28});
+  assert.deepEqual(right,{x:69,y:58,size:28});
   assert.ok(left.y-left.size/2>=45,"QR quiet-zone starts below the five-star row");
   assert.ok(left.x-left.size/2>16,"QR stays inside blue frame left edge");
   assert.ok(left.x+left.size/2<47,"QR stays inside blue frame right edge");
@@ -185,8 +185,8 @@ test("V1 card renderer hides card code but preserves the full verified QR URL",(
   assert.doesNotMatch(exportsSource,/ctx\.fillText\(card\.code/);
   assert.match(exportsSource,/ctx\.drawImage\(qr,/);
   assert.match(exportsSource,/if\(custom\)/);
-  assert.equal(layouts.v1SafePlacement({x:31,y:58,size:26}).size,26,
-    "the safety clamp must preserve a 26% QR");
+  assert.equal(layouts.v1SafePlacement({x:31,y:58,size:28}).size,28,
+    "the safety clamp must preserve a 28% QR");
   assert.equal(layouts.v1DefaultPlacement("navy_left").size,35,
     "built-in QR designs keep their prior default size");
   assert.match(page,/v1UploadedTemplatePlacement\(key\)/);
@@ -205,4 +205,12 @@ test("uploaded artwork uses the QR canvas only, with quiet zone for scanning",as
   assert.match(page,/renderV1Card\(renderSettings\(first,side\)\)/);
   assert.match(page,/renderV1Card\(renderSettings\(card,face\)\)/);
   assert.match(page,/renderV1Card\(renderSettings\(card,"front",1417\)\)/);
+});
+
+test("clean reference template defaults preserve native NFC and YukReview branding",()=>{
+  assert.match(page,/setTemplateNfc\(old=>\(\{\.\.\.old,\[key\]:false\}\)\)/);
+  assert.match(page,/v1DefaultTemplateQrCleanup\(key\),enabled:false/);
+  assert.match(page,/kotak QR biru dan ikon NFC/);
+  assert.doesNotMatch(exportsSource,/ctx\.fillRect\(size\*\.80,size\*\.912/);
+  assert.deepEqual(layouts.v1UploadedTemplatePlacement("white_left"),{x:31,y:58,size:28});
 });
