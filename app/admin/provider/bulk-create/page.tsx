@@ -6,7 +6,7 @@ type Readiness = { ready: boolean; mode: string; reason: string; cardCount?: num
 export default function BulkCreateV1Page() {
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
-  const [count, setCount] = useState(10);
+  const [count, setCount] = useState(1);
   const [cards, setCards] = useState<CreatedCard[]>([]);
   const [busy, setBusy] = useState(false);
   const [csvSaved, setCsvSaved] = useState(false);
@@ -70,15 +70,24 @@ export default function BulkCreateV1Page() {
     const csv = rows.map(row => row.map(value => '"' + value.replaceAll('"', '""') + '"').join(",")).join("\r\n");
     const blob = new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" });
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob); link.download = "V1-Bulk-Kartu.csv"; link.click();
-    URL.revokeObjectURL(link.href);
+    const objectUrl = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().slice(0, 19).replaceAll(":", "-");
+    link.href = objectUrl;
+    link.download = "V1-Bulk-Kartu-" + timestamp + ".csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Do not revoke immediately: some browsers need time to start downloading.
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
     setCsvSaved(true);
+    setMessage("Unduhan CSV + PIN telah diminta. Pastikan file tersimpan sebelum meninggalkan halaman.");
   }
   return <main className="min-h-screen bg-gray-50 px-5 py-10">
     <section className="mx-auto max-w-3xl rounded-3xl border bg-white p-7 shadow-sm">
       <p className="text-xs font-bold text-blue-700">ULASANTOKO V1 · PROVIDER</p>
       <h1 className="mt-2 text-2xl font-bold">Bulk Create V1</h1>
-      <p className="mt-2 text-sm text-gray-600">Buat kartu massal dengan kode ULAS berurutan dan PIN aktivasi masing-masing.</p>
+      <p className="mt-2 text-sm text-gray-600">Buat kartu dengan kode ULAS berurutan dan PIN aktivasi masing-masing.</p>
+      <p className="mt-2 text-sm font-semibold text-blue-700">Untuk uji pertama, buat 1 kartu dahulu. Setelah berhasil, unduh CSV + PIN sebelum beralih ke Bulk Designer.</p>
       {checking ? <p className="mt-6">Memeriksa sesi Provider...</p>
         : !authenticated ? <p className="mt-6">Silakan <a className="text-blue-700 underline" href="/admin/provider">login Provider V1</a> terlebih dahulu.</p>
         : <>
@@ -99,7 +108,7 @@ export default function BulkCreateV1Page() {
             <button onClick={download} className="rounded-xl bg-green-700 px-5 py-3 font-semibold text-white">
               Download CSV + PIN
             </button>
-            <p className="mt-3 text-sm">{cards.length} kartu baru berhasil dibuat. Simpan file CSV secara aman. {csvSaved ? "CSV telah diminta untuk diunduh." : "Jangan tutup halaman sebelum mengunduh CSV."}</p>
+            <p className="mt-3 text-sm">{cards.length} kartu baru berhasil dibuat. Simpan file CSV secara aman. {csvSaved ? "Periksa folder Downloads. Jika file belum tersimpan, klik Download CSV + PIN lagi." : "Jangan tutup halaman sebelum mengunduh CSV."}</p>
             <div className="mt-3 max-h-72 overflow-auto">
               <table className="w-full text-left text-sm"><thead><tr><th>Kode</th><th>PIN</th></tr></thead>
                 <tbody>{cards.map(c => <tr className="border-t" key={c.card_code}>
@@ -109,7 +118,7 @@ export default function BulkCreateV1Page() {
           </div>}
         </>}
       <nav className="mt-8 flex flex-wrap gap-5 text-sm text-blue-700">
-        <a href="/admin/provider">Provider V1</a><a href="/admin/provider/bulk-designer">Bulk Designer</a>
+        <a href="/admin/provider">Provider V1</a><a href="/admin/provider/bulk-designer">Bulk Designer: Upload CSV</a>
       </nav>
     </section>
   </main>;

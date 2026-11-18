@@ -29,3 +29,11 @@ test("designer checks session and verifies V1-only CSV before print",()=>{
  assert.match(designer,/await verifyCodes\(cards\.map\(c => c\.code\)\)/);
  assert.match(designer,/fetch\("\/api\/v1\/provider\/session"/);
 });
+
+test("first V1 issuance defaults to one card and CSV download remains retriable",()=>{
+ assert.match(bulk,/const \[count, setCount\] = useState\(1\)/);
+ assert.match(bulk,/document\.body\.appendChild\(link\)/);
+ assert.match(bulk,/window\.setTimeout\(\(\) => URL\.revokeObjectURL\(objectUrl\), 60_000\)/);
+ assert.match(bulk,/Download CSV \+ PIN lagi/);
+ assert.match(bulk,/Bulk Designer: Upload CSV/);
+});
