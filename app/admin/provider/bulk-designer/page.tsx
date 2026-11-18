@@ -1,188 +1,331 @@
 "use client";
-import { useEffect, useState } from "react";
-import QRCode from "qrcode";
-import { parseV1BulkCsv } from "@/lib/v1-bulk-csv";
-
-type Card = { code: string; url: string };
-const BASE = "https://app.ulasantoko.space/r-v1/";
-
-function escapeHtml(input: string) {
-  return input.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
-}
-async function qrImage(url: string, mode: string) {
-  const canvas = document.createElement("canvas");
-  await QRCode.toCanvas(canvas, url, {
-    width: 480, margin: 4, errorCorrectionLevel: "H",
-    color: { dark: mode === "blue" ? "#123b78" : mode === "black" ? "#000000" : "#172f55", light: "#ffffff" },
-  });
-  if (mode === "rainbow") {
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas tidak tersedia.");
-    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    for (let y = 0; y < canvas.height; y++) {
-      for (let x = 0; x < canvas.width; x++) {
-        const idx = (y * canvas.width + x) * 4;
-        if (image.data[idx] < 160) {
-          const p = x / canvas.width;
-          // Dark, high-contrast rainbow palette, keeping white background intact.
-          const stops = [[105,35,115],[27,67,150],[0,99,108],[98,58,129]];
-          const v = p * 3; const i = Math.min(2, Math.floor(v)); const t = v - i;
-          for (let c = 0; c < 3; c++) image.data[idx+c] = Math.round(stops[i][c]*(1-t)+stops[i+1][c]*t);
-        }
-      }
-    }
-    ctx.putImageData(image, 0, 0);
-  }
-  return canvas.toDataURL("image/png");
-}
+import {useEffect,useState} from "react";
+import {parseV1BulkCsv} from "@/lib/v1-bulk-csv";
+import {
+  V1_DESIGNS,v1CardUrl,v1DefaultPlacement,v1PageLayout,v1MirrorSlot,
+  type V1CardData,type V1DesignKey,type V1QRMode,type V1QRPlacement,
+  type V1Side,type V1Paper,type V1Flip
+} from "@/lib/v1-designer-layout";
+import {renderV1Card,v1CanvasPng,v1Download,v1Zip} from "@/lib/v1-designer-export";
 
 export default function BulkDesignerV1Page() {
-  const [authenticated, setAuthenticated] = useState(false);
-  const [checking, setChecking] = useState(true);
-  const [cards, setCards] = useState<Card[]>([]);
-  const [mode, setMode] = useState("rainbow");
-  const [doubleSided, setDoubleSided] = useState(true);
-  const [duplexFlip, setDuplexFlip] = useState<"long" | "short">("long");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [authenticated,setAuthenticated]=useState(false);
+  const [checking,setChecking]=useState(true);
+  const [cards,setCards]=useState<V1CardData[]>([]);
+  const [filename,setFilename]=useState("");
+  const [frontDesign,setFrontDesign]=useState<V1DesignKey>("navy_right");
+  const [backDesign,setBackDesign]=useState<V1DesignKey>("navy_left");
+  const [templates,setTemplates]=useState<Partial<Record<V1DesignKey,string>>>({});
+  const [frontPosition,setFrontPosition]=useState<V1QRPlacement>(v1DefaultPlacement("navy_right"));
+  const [backPosition,setBackPosition]=useState<V1QRPlacement>(v1DefaultPlacement("navy_left"));
+  const [mode,setMode]=useState<V1QRMode>("rainbow");
+  const [side,setSide]=useState<V1Side>("front");
+  const [paper,setPaper]=useState<V1Paper>("a3plus");
+  const [doubleSided,setDoubleSided]=useState(false);
+  const [duplexFlip,setDuplexFlip]=useState<V1Flip>("long");
+  const [preview,setPreview]=useState("");
+  const [previewError,setPreviewError]=useState("");
+  const [error,setError]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [progress,setProgress]=useState("");
 
-  useEffect(() => {
-    fetch("/api/v1/provider/session", { cache: "no-store" })
-      .then(r => r.json()).then(d => setAuthenticated(d.authenticated === true))
-      .catch(() => setAuthenticated(false)).finally(() => setChecking(false));
-  }, []);
+  useEffect(()=>{
+    fetch("/api/v1/provider/session",{cache:"no-store"})
+      .then(r=>r.json()).then(d=>setAuthenticated(d.authenticated===true))
+      .catch(()=>setAuthenticated(false)).finally(()=>setChecking(false));
+  },[]);
 
-  async function verifyCodes(codes: string[]) {
-    const response = await fetch("/api/v1/provider/validate-cards", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ codes }),
-      cache: "no-store",
+  const selectedDesign=side==="front"?frontDesign:backDesign;
+  const selectedPlacement=side==="front"?frontPosition:backPosition;
+  const first=cards[0];
+
+  useEffect(()=>{
+    if(!first){setPreview("");setPreviewError("");return;}
+    let cancelled=false;
+    setPreviewError("");
+    void renderV1Card({
+      card:first,design:selectedDesign,mode,placement:selectedPlacement,
+      templateDataUrl:templates[selectedDesign],pixels:650,
+    }).then(canvas=>{if(!cancelled)setPreview(canvas.toDataURL("image/png"));})
+      .catch(e=>{if(!cancelled)setPreviewError(e instanceof Error?e.message:"Preview gagal.");});
+    return ()=>{cancelled=true;};
+  },[first,selectedDesign,mode,selectedPlacement,templates]);
+
+  async function verifyCodes(codes:string[]){
+    const response=await fetch("/api/v1/provider/validate-cards",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({codes}),cache:"no-store"
     });
-    const result = await response.json();
-    if (!response.ok || result.valid !== true) {
-      throw new Error(result.message || "Tidak bisa memverifikasi kode kartu V1.");
+    const result=await response.json();
+    if(!response.ok || result.valid!==true){
+      throw new Error(result.message || "Kode kartu V1 belum terverifikasi.");
     }
   }
-
-  async function loadCsv(file: File) {
-    setCards([]);
-    setError("");
-    try {
-      const text = (await file.text()).replace(/^\ufeff/, "");
-      if (file.size > 1_000_000) throw new Error("CSV terlalu besar (maksimal 1 MB).");
-      const codes = parseV1BulkCsv(text);
+  async function loadCsv(file:File){
+    setCards([]);setPreview("");setError("");setFilename("");
+    try{
+      if(file.size>1_000_000)throw new Error("CSV terlalu besar (maksimal 1 MB).");
+      const text=(await file.text()).replace(/^\ufeff/,"");
+      const codes=parseV1BulkCsv(text);
       await verifyCodes(codes);
-      setCards(codes.map(code => ({ code, url: BASE + encodeURIComponent(code) })));
-      setError("");
-    } catch (e) { setError(e instanceof Error ? e.message : "CSV tidak dapat dibaca."); }
+      // Keep only verified V1 card codes and links. Never retain CSV activation PINs.
+      setCards(codes.map(code=>({code,url:v1CardUrl(code)})));
+      setFilename(file.name);
+    }catch(e){setError(e instanceof Error?e.message:"CSV tidak dapat dibaca.");}
   }
-
-  async function printCards() {
-    if (!cards.length || busy) return;
-    setBusy(true); setError("");
-    // Open the window synchronously within the button click so pop-up blockers don't intercept it.
-    const win = window.open("", "_blank");
-    if (!win) { setError("Izinkan pop-up untuk membuat PDF."); setBusy(false); return; }
-    try {
-      win.document.write("<!doctype html><html><head><title>Menyiapkan desain V1...</title></head><body><p>Memvalidasi kartu V1...</p></body></html>");
-      await verifyCodes(cards.map(c => c.code));
-      const images = await Promise.all(cards.map(c => qrImage(c.url, mode)));
-      const render = (c: Card, qr: string, back: boolean) => {
-        const qrPart = '<img class="qr" alt="QR code" src="' + qr + '">';
-        const nfcPart = '<div class="nfc"><span class="waves">)))</span><strong>TAP NFC</strong></div>';
-        return '<article class="card"><header><b>YukReview.id</b><span>GOOGLE REVIEW</span></header>' +
-          '<h2>' + (back ? 'Terima kasih atas ulasan Anda' : 'Bagikan pengalaman Anda') + '</h2>' +
-          '<div class="middle">' + (back ? qrPart+nfcPart : nfcPart+qrPart) + '</div>' +
-          '<p>Scan QR atau Tap NFC</p><small>' + escapeHtml(c.code) + '</small></article>';
-      };
-      let sheets = "";
-      for (let i = 0; i < cards.length; i += 6) {
-        // Keep all 6 slots so partial pages also register correctly on the back.
-        const slots = Array.from({ length: 6 }, (_, j) => cards[i+j] ?? null);
-        const renderSlot = (index: number, back: boolean) => {
-          const c = slots[index];
-          return c ? render(c, images[i+index], back)
-            : '<article class="card empty"></article>';
-        };
-        sheets += '<section class="sheet">' +
-          slots.map((_, j) => renderSlot(j, false)).join("") +
-          '</section>';
-        if (doubleSided) {
-          const mirror = (j: number) => {
-            const row = Math.floor(j / 3), col = j % 3;
-            return duplexFlip === "long" ? (1-row)*3+col : row*3+(2-col);
-          };
-          sheets += '<section class="sheet back">' +
-            slots.map((_, j) => renderSlot(mirror(j), true)).join("") +
-            '</section>';
-        }
+  async function uploadTemplate(key:V1DesignKey,file?:File){
+    if(!file)return;
+    try{
+      if(!["image/png","image/jpeg"].includes(file.type) || file.size>8_000_000 || file.size===0){
+        throw new Error("Template harus PNG/JPG, maksimal 8 MB.");
       }
-      const css = '@page{size:A3 landscape;margin:8mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#14345e;background:white}.sheet{width:100%;display:grid;grid-template-columns:repeat(3,100mm);grid-template-rows:repeat(2,100mm);gap:3mm;justify-content:center;break-after:page;page-break-after:always}.card{height:100mm;width:100mm;border:0.25mm solid #d4dce5;padding:7mm;position:relative;overflow:hidden;break-inside:avoid}.card header{display:flex;align-items:center;justify-content:space-between;font-size:10pt}.card header span{font-size:6pt;letter-spacing:0.7pt}.card h2{font-size:14pt;text-align:center;margin:9mm 0 5mm}.middle{display:flex;align-items:center;justify-content:space-around;height:45mm}.qr{height:39mm;width:39mm;image-rendering:auto}.nfc{text-align:center;width:33mm}.waves{font-size:25pt;display:block}.nfc strong{font-size:10pt}.card p{font-size:10pt;text-align:center;margin:3mm 0}.card small{position:absolute;right:7mm;bottom:5mm;font-size:7pt}.back .card{border-style:dashed}.sheet:last-child{break-after:auto;page-break-after:auto}@media screen{body{padding:10mm;background:#eee}.sheet{background:white;margin:0 auto 10mm;max-width:404mm;min-height:280mm;padding-top:4mm;box-shadow:0 1px 8px #ddd}}';
+      const bytes=new Uint8Array(await file.slice(0,8).arrayBuffer());
+      const png=bytes[0]===137 && bytes[1]===80 && bytes[2]===78 && bytes[3]===71;
+      const jpg=bytes[0]===255 && bytes[1]===216 && bytes[2]===255;
+      if(!(png||jpg))throw new Error("File bukan PNG/JPG yang valid.");
+      const encoded=await new Promise<string>((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>typeof reader.result==="string"?resolve(reader.result):reject(new Error("Gagal membaca template."));
+        reader.onerror=()=>reject(new Error("Gagal membaca template."));
+        reader.readAsDataURL(file);
+      });
+      setTemplates(old=>({...old,[key]:encoded}));setError("");
+    }catch(e){setError(e instanceof Error?e.message:"Template gagal diproses.");}
+  }
+  function changeDesign(next:V1DesignKey){
+    if(side==="front"){
+      setFrontDesign(next);setFrontPosition(v1DefaultPlacement(next));
+    }else{
+      setBackDesign(next);setBackPosition(v1DefaultPlacement(next));
+    }
+  }
+  function positionValue(field:keyof V1QRPlacement,value:number){
+    const fn=(old:V1QRPlacement)=>({...old,[field]:value});
+    if(side==="front")setFrontPosition(fn);
+    else setBackPosition(fn);
+  }
+  function renderSettings(card:V1CardData,face:V1Side,pixels=1417){
+    const design=face==="front"?frontDesign:backDesign;
+    return {
+      card,design,mode,pixels,
+      placement:face==="front"?frontPosition:backPosition,
+      templateDataUrl:templates[design],
+    };
+  }
+  async function downloadFirstPng(){
+    if(!first || busy)return;
+    setBusy(true);setError("");setProgress("Memvalidasi kartu V1...");
+    try{
+      await verifyCodes(cards.map(c=>c.code));
+      const canvas=await renderV1Card(renderSettings(first,side));
+      v1Download(await v1CanvasPng(canvas),first.code+"-"+side+"-HD.png");
+      setProgress("PNG HD telah diminta untuk diunduh (1417 × 1417 px).");
+    }catch(e){setError(e instanceof Error?e.message:"PNG gagal dibuat.");}
+    finally{setBusy(false);}
+  }
+  async function downloadZip(){
+    if(!cards.length||busy)return;
+    setBusy(true);setError("");setProgress("Memvalidasi semua kode kartu ke database V1...");
+    try{
+      await verifyCodes(cards.map(c=>c.code));
+      const files:{name:string;bytes:Uint8Array}[]=[];
+      for(let i=0;i<cards.length;i++){
+        const card=cards[i];
+        for(const face of (doubleSided?["front","back"] as const:["front"] as const)){
+          const canvas=await renderV1Card(renderSettings(card,face));
+          const blob=await v1CanvasPng(canvas);
+          files.push({
+            name:card.code+"-"+(face==="front"?"depan":"belakang")+".png",
+            bytes:new Uint8Array(await blob.arrayBuffer()),
+          });
+        }
+        if(i===0 || (i+1)%5===0 || i+1===cards.length)
+          setProgress("Menyiapkan PNG HD "+(i+1)+" / "+cards.length+" kartu...");
+      }
+      const zip=v1Zip(files);
+      v1Download(zip,"V1-Desain-PNG-HD-"+cards.length+"-kartu.zip");
+      setProgress("ZIP PNG HD berhasil disiapkan. PIN tidak disertakan.");
+    }catch(e){setError(e instanceof Error?e.message:"ZIP HD gagal dibuat.");}
+    finally{setBusy(false);}
+  }
+  async function printCards(){
+    if(!cards.length||busy)return;
+    const win=window.open("","_blank");
+    if(!win){setError("Izinkan pop-up browser untuk membuka PDF cetak.");return;}
+    setBusy(true);setError("");setProgress("Memeriksa kode kartu V1...");
+    win.document.write("<!doctype html><html><head><title>Menyiapkan cetak V1...</title></head><body style='font-family:Arial'>Memvalidasi kartu V1...</body></html>");
+    try{
+      await verifyCodes(cards.map(c=>c.code));
+      const layout=v1PageLayout(paper);
+      const pageHtml:string[]=[];
+      for(let i=0;i<cards.length;i+=layout.cardsPerPage){
+        const slots=Array.from({length:layout.cardsPerPage},(_,j)=>cards[i+j]??null);
+        const frontImgs:string[]=[];
+        const backImgs:string[]=[];
+        for(let j=0;j<slots.length;j++){
+          const card=slots[j];
+          if(!card){frontImgs.push("");backImgs.push("");continue;}
+          const front=await renderV1Card(renderSettings(card,"front",1417));
+          frontImgs.push(front.toDataURL("image/png"));
+          if(doubleSided){
+            const back=await renderV1Card(renderSettings(card,"back",1417));
+            backImgs.push(back.toDataURL("image/png"));
+          }
+        }
+        const printSide=(imgs:string[],back:boolean)=>{
+          const printed=slots.map((_,j)=>{
+            const idx=back?v1MirrorSlot(j,paper,duplexFlip):j;
+            const img=imgs[idx];
+            return '<article class="slot">'+(img?'<img alt="Desain kartu V1" src="'+img+'">':"")+
+              '<i class="cut tl"></i><i class="cut tr"></i><i class="cut bl"></i><i class="cut br"></i></article>';
+          }).join("");
+          return '<section class="sheet">'+printed+'</section>';
+        };
+        pageHtml.push(printSide(frontImgs,false));
+        if(doubleSided)pageHtml.push(printSide(backImgs,true));
+        setProgress("Menyiapkan lembar "+(Math.floor(i/layout.cardsPerPage)+1)+" / "+Math.ceil(cards.length/layout.cardsPerPage)+"...");
+      }
+      const size=paper==="a3plus"?"329mm 483mm":"A3 landscape";
+      const css='@page{size:'+size+';margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0}body{font-family:Arial;background:white}.sheet{width:'+layout.pageWidthMm+'mm;height:'+layout.pageHeightMm+'mm;display:grid;grid-template-columns:repeat('+layout.columns+',100mm);grid-template-rows:repeat('+layout.rows+',100mm);gap:5mm;align-content:center;justify-content:center;break-after:page;page-break-after:always}.sheet:last-child{break-after:auto;page-break-after:auto}.slot{width:100mm;height:100mm;position:relative;border:.12mm dashed #abb7c9;break-inside:avoid}.slot img{display:block;width:100%;height:100%;object-fit:cover}.cut{position:absolute;width:3mm;height:3mm;pointer-events:none}.tl{top:-1.5mm;left:-1.5mm;border-top:.2mm solid #888;border-left:.2mm solid #888}.tr{top:-1.5mm;right:-1.5mm;border-top:.2mm solid #888;border-right:.2mm solid #888}.bl{bottom:-1.5mm;left:-1.5mm;border-bottom:.2mm solid #888;border-left:.2mm solid #888}.br{bottom:-1.5mm;right:-1.5mm;border-bottom:.2mm solid #888;border-right:.2mm solid #888}@media screen{body{background:#e9eef5}.sheet{background:white;margin:10mm auto;box-shadow:0 2px 16px #a8b1c0}}';
       win.document.open();
-      win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>V1 Bulk Designer</title><style>'+css+'</style></head><body>'+sheets+'</body></html>');
-      win.document.close();
-      win.focus();
-    } catch (e) {
-      win.close();
-      setError(e instanceof Error ? e.message : "Gagal membuat desain.");
-    } finally { setBusy(false); }
+      win.document.write('<!doctype html><html lang="id"><head><meta charset="utf-8"><title>V1 Bulk Designer — Cetak HD</title><style>'+css+'</style></head><body>'+pageHtml.join("")+'</body></html>');
+      win.document.close();win.focus();
+      setProgress("Preview cetak siap. Tekan Ctrl/Cmd+P, Save as PDF, skala 100%.");
+    }catch(e){
+      win.close();setError(e instanceof Error?e.message:"Gagal membuat cetakan V1.");
+    }finally{setBusy(false);}
   }
 
-  return <main className="min-h-screen bg-gray-50 px-5 py-10">
-    <section className="mx-auto max-w-3xl rounded-3xl border bg-white p-7 shadow-sm">
-      <p className="text-xs font-bold text-blue-700">ULASANTOKO V1 · PROVIDER</p>
-      <h1 className="mt-2 text-2xl font-bold">Bulk Designer V1</h1>
-      <p className="mt-2 text-sm text-gray-600">Import CSV Bulk Create V1 untuk desain kartu 10 × 10 cm, 6 kartu per lembar A3 landscape. Kode hanya dapat dicetak setelah diverifikasi pada database V1.</p>
-      {checking ? <p className="mt-5">Memeriksa sesi Provider...</p>
-        : !authenticated ? <p className="mt-5">Silakan <a href="/admin/provider" className="text-blue-700 underline">login Provider</a> terlebih dahulu.</p>
-        : <>
-          <section className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm">
-            <p className="font-semibold text-blue-900">Bulk Designer untuk mencetak, bukan membuat kartu.</p>
-            <p className="mt-2 text-blue-900">Langkah 1: buat 1–100 kartu melalui Bulk Create, lalu unduh CSV + PIN.</p>
-            <p className="mt-1 text-blue-900">Langkah 2: pilih CSV hasil unduhan pada halaman ini untuk menyiapkan desain QR/NFC.</p>
-            <a className="mt-3 inline-block rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white" href="/admin/provider/bulk-create">
-              Buka Bulk Create V1
-            </a>
+  const currentPreset=V1_DESIGNS.find(d=>d.key===selectedDesign)!;
+  const sheet=v1PageLayout(paper);
+  return <main className="min-h-screen bg-gray-50 px-4 py-8 text-slate-900">
+    <section className="mx-auto max-w-7xl rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-8">
+      <a href="/admin/provider" className="text-sm text-blue-700 underline">← Kembali ke Provider V1</a>
+      <p className="mt-5 text-xs font-bold tracking-wide text-blue-700">ULASANTOKO V1 · PROVIDER</p>
+      <h1 className="mt-2 text-3xl font-bold text-slate-900">Bulk Card Designer V1</h1>
+      <p className="mt-2 max-w-4xl text-sm text-slate-600">Upload CSV Bulk Create, pilih desain, atur QR, preview kartu pertama, lalu ekspor PNG HD atau cetak A3/A3+. Semua gambar diproses di browser; PIN aktivasi tidak dicetak atau diunggah.</p>
+      {checking ? <p className="mt-6">Memeriksa sesi Provider V1...</p> :
+        !authenticated ? <p className="mt-6">Silakan <a href="/admin/provider" className="text-blue-700 underline">login Provider V1</a> terlebih dahulu.</p> :
+      <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
+        <div className="space-y-5">
+          <section className="rounded-2xl border border-slate-200 p-4">
+            <h2 className="text-lg font-bold">1. Upload CSV V1</h2>
+            <p className="mt-2 text-xs text-slate-600">Hanya CSV asli Bulk Create V1. Kode dicek ke database khusus V1; tidak ada PIN yang dikirim.</p>
+            <input aria-label="CSV kartu V1" type="file" accept=".csv,text/csv" className="mt-3 block w-full text-sm"
+              onChange={e=>{const file=e.target.files?.[0];if(file)void loadCsv(file);}}/>
+            {filename && <p className="mt-2 break-all text-xs text-slate-500">File: {filename}</p>}
+            <p className="mt-3 text-sm font-semibold text-blue-800">{cards.length} kartu siap diproses.</p>
+            <a href="/admin/provider/bulk-create" className="mt-2 inline-block text-sm text-blue-700 underline">Buka Bulk Create V1 untuk membuat kartu</a>
           </section>
-          <label htmlFor="csv" className="mt-6 block text-sm font-semibold">Upload CSV hasil Bulk Create V1</label>
-          <input id="csv" type="file" accept=".csv,text/csv" className="my-3 block w-full"
-            onChange={e => {const file=e.target.files?.[0]; if(file) void loadCsv(file);}}/>
-          <label htmlFor="color" className="block text-sm font-semibold">Pilihan QR</label>
-          <select id="color" className="my-2 rounded-xl border p-3" value={mode} onChange={e=>setMode(e.target.value)}>
-            <option value="rainbow">Rainbow (gradasi kontras)</option>
-            <option value="blue">Biru</option><option value="black">Gelap</option>
-          </select>
-          <label className="my-4 flex items-center gap-3 text-sm">
-            <input type="checkbox" checked={doubleSided} onChange={e=>setDoubleSided(e.target.checked)}/>
-            Dua sisi (QR dan NFC bertukar posisi di belakang)
-          </label>
-          {doubleSided && <>
-            <label htmlFor="duplex" className="block text-sm font-semibold">Arah balik kertas untuk sisi belakang</label>
-            <select id="duplex" value={duplexFlip}
-              onChange={e=>setDuplexFlip(e.target.value as "long"|"short")}
-              className="my-2 rounded-xl border p-3">
-              <option value="long">Balik sisi panjang (long edge)</option>
-              <option value="short">Balik sisi pendek (short edge)</option>
-            </select>
-            <p className="mb-3 text-xs text-gray-600">Wajib uji 1 lembar dan cocokkan QR/NFC kedua sisi dengan kode kartu yang sama sebelum cetak massal.</p>
-          </>}
-          <p className="mb-4 text-sm text-gray-600">
-            {cards.length > 0
-              ? `${cards.length} kartu siap didesain. Pilih Buka Desain / Simpan PDF.`
-              : "Belum ada kartu siap didesain. Unggah CSV yang diunduh dari Bulk Create V1 terlebih dahulu."}
-          </p>
-          <button disabled={!cards.length || busy} onClick={printCards}
-            className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white disabled:opacity-50">
-            {busy ? "Menyiapkan..." : "Buka Desain / Simpan PDF"}
-          </button>
-          <p className="mt-3 text-xs text-gray-500">
-            Pada jendela desain, tekan Ctrl/Cmd+P, pilih Save as PDF, kertas A3 landscape, skala 100%.
-            Lakukan uji scan dan uji registrasi depan/belakang sebelum produksi massal.
-          </p>
-          {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
-        </>}
-      <nav className="mt-8 flex flex-wrap gap-5 text-sm text-blue-700">
-        <a href="/admin/provider">Provider V1</a><a href="/admin/provider/bulk-create">Bulk Create</a>
+
+          <section className="rounded-2xl border border-slate-200 p-4">
+            <h2 className="text-lg font-bold">2. Pilih desain kartu</h2>
+            <p className="mt-1 text-xs text-slate-500">Tersedia 4 desain bawaan atau unggah PNG/JPG sendiri (maks. 8 MB). Template tetap lokal di browser.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {V1_DESIGNS.map(design=><div key={design.key} className="rounded-lg border border-slate-200 p-2">
+                <div className={"mb-2 flex h-12 items-center justify-center rounded-md border text-xs font-semibold "+(design.dark?"bg-[#112e57] text-white":"bg-white text-slate-800")}>
+                  {design.title}
+                </div>
+                <label className="text-xs font-medium">{templates[design.key]?"Template diunggah":"Upload PNG/JPG"}
+                  <input aria-label={"Upload "+design.title} className="mt-1 block w-full text-[10px]" type="file" accept="image/png,image/jpeg"
+                    onChange={e=>{const file=e.target.files?.[0];if(file)void uploadTemplate(design.key,file);}}/>
+                </label>
+                {templates[design.key] && <button className="mt-1 text-xs text-blue-700 underline" onClick={()=>setTemplates(old=>({...old,[design.key]:undefined}))}>Pakai desain bawaan</button>}
+              </div>)}
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <label className="block text-xs font-semibold">Desain depan
+                <select className="mt-1 w-full rounded-lg border p-2 text-sm" value={frontDesign}
+                  onChange={e=>{const next=e.target.value as V1DesignKey;setFrontDesign(next);setFrontPosition(v1DefaultPlacement(next));}}>
+                  {V1_DESIGNS.map(d=><option value={d.key} key={d.key}>{d.title}</option>)}
+                </select>
+              </label>
+              <label className="block text-xs font-semibold">Desain belakang
+                <select className="mt-1 w-full rounded-lg border p-2 text-sm" value={backDesign}
+                  onChange={e=>{const next=e.target.value as V1DesignKey;setBackDesign(next);setBackPosition(v1DefaultPlacement(next));}}>
+                  {V1_DESIGNS.map(d=><option value={d.key} key={d.key}>{d.title}</option>)}
+                </select>
+              </label>
+            </div>
+            <label className="mt-4 block text-sm font-semibold">Warna QR Code</label>
+            <div className="mt-2 flex flex-wrap gap-3 text-sm">
+              {([["rainbow","Rainbow"],["black","Hitam-putih"],["blue","Biru"]] as const).map(([value,label])=>
+                <label key={value} className="flex items-center gap-1"><input type="radio" name="v1-qr-mode" checked={mode===value} onChange={()=>setMode(value)}/>{label}</label>
+              )}
+            </div>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <h3 className="text-sm font-semibold">Atur posisi & ukuran QR — {side==="front"?"depan":"belakang"}</h3>
+              {([["x","Posisi horizontal (X)",15,85],["y","Posisi vertikal (Y)",25,78],["size","Ukuran QR",25,43]] as const).map(([field,label,min,max])=>
+                <label className="mt-3 block text-xs" key={field}>{label} — <strong>{selectedPlacement[field]}%</strong>
+                  <input className="mt-1 block w-full" type="range" min={min} max={max} value={selectedPlacement[field]}
+                    onChange={e=>positionValue(field,Number(e.target.value))}/>
+                </label>
+              )}
+              <button className="mt-3 text-xs text-blue-700 underline" onClick={()=>changeDesign(selectedDesign)}>Reset posisi QR</button>
+            </div>
+            <label className="mt-4 flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={doubleSided} onChange={e=>setDoubleSided(e.target.checked)}/>
+              Cetak bolak-balik (dua sisi, QR & NFC dapat bertukar posisi)
+            </label>
+            {doubleSided && <label className="mt-3 block text-sm">Arah balik kertas
+              <select className="mt-1 w-full rounded-lg border p-2" value={duplexFlip} onChange={e=>setDuplexFlip(e.target.value as V1Flip)}>
+                <option value="long">Balik sisi panjang (long edge)</option>
+                <option value="short">Balik sisi pendek (short edge)</option>
+              </select>
+            </label>}
+            <p className="mt-3 text-xs text-slate-500">QR otomatis menyimpan tautan asli V1. Uji scan fisik depan/belakang sebelum cetak massal.</p>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 p-4">
+            <h2 className="text-lg font-bold">3. Export HD & cetak</h2>
+            <label className="mt-3 block text-sm font-medium">Ukuran lembar
+              <select className="mt-1 block w-full rounded-lg border p-2" value={paper} onChange={e=>setPaper(e.target.value as V1Paper)}>
+                <option value="a3plus">A3+ portrait · 329 × 483 mm · 12 kartu</option>
+                <option value="a3">A3 landscape · 420 × 297 mm · 6 kartu</option>
+              </select>
+            </label>
+            <p className="mt-2 text-xs text-slate-500">Kartu 10 × 10 cm, jarak 5 mm, tanda potong. PNG individual 1417 × 1417 px (≈360 DPI).</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button disabled={!cards.length||busy} onClick={()=>void downloadFirstPng()} className="rounded-lg border border-blue-700 px-3 py-2 text-sm font-semibold text-blue-700 disabled:opacity-40">PNG kartu pertama</button>
+              <button disabled={!cards.length||busy} onClick={()=>void downloadZip()} className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40">Download ZIP HD</button>
+              <button disabled={!cards.length||busy} onClick={()=>void printCards()} className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40 sm:col-span-2">Preview cetak {sheet.cardsPerPage} kartu/lembar · Simpan PDF</button>
+            </div>
+            {progress && <p role="status" className="mt-3 text-sm text-blue-800">{progress}</p>}
+            {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-2 text-sm text-red-700">{error}</p>}
+            <p className="mt-3 text-xs text-slate-500">Di jendela cetak tekan Ctrl/Cmd+P, pilih Save as PDF, ukuran kertas sesuai pengaturan dan skala 100%. Browser/printer tertentu memerlukan ukuran kustom untuk A3+.</p>
+          </section>
+        </div>
+
+        <aside className="min-w-0 lg:sticky lg:top-6 lg:self-start">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <h2 className="text-xl font-bold text-slate-900">Preview kartu pertama — {side==="front"?"depan":"belakang"}</h2>
+            <p className="mt-1 text-sm text-slate-600">Preview langsung dari CSV terverifikasi. PIN aktivasi tidak ditampilkan.</p>
+            <div className="mt-4 flex gap-2">
+              <button aria-pressed={side==="front"} className={"rounded-lg px-4 py-2 text-sm font-semibold "+(side==="front"?"bg-blue-700 text-white":"border bg-white text-slate-700")} onClick={()=>setSide("front")}>Depan</button>
+              <button aria-pressed={side==="back"} className={"rounded-lg px-4 py-2 text-sm font-semibold "+(side==="back"?"bg-blue-700 text-white":"border bg-white text-slate-700")} onClick={()=>setSide("back")}>Belakang</button>
+            </div>
+            <div className="mt-4 flex min-h-[360px] items-center justify-center rounded-xl border bg-white p-6">
+              {!first?<p className="text-center text-sm text-slate-500">Preview muncul setelah CSV Bulk Create V1 diunggah dan kode kartu berhasil diverifikasi.</p>:
+                previewError?<p role="alert" className="text-sm text-red-700">{previewError}</p>:
+                preview?<img alt={"Preview "+side+" kartu "+first.code} className="aspect-square w-full max-w-[440px] rounded-md shadow" src={preview}/>:
+                <p className="text-sm text-slate-500">Menyiapkan preview desain...</p>}
+            </div>
+            {first && <p className="mt-3 text-center text-xs text-slate-500">{first.code} · {currentPreset.title} · {cards.length} kartu</p>}
+            <div className="mt-5 border-t pt-4">
+              <h3 className="text-sm font-bold">Preview layout {paper==="a3plus"?"A3+ 3×4":"A3 3×2"}</h3>
+              <div className="mt-2 grid grid-cols-3 gap-1 rounded-lg border bg-white p-3">
+                {Array.from({length:sheet.cardsPerPage},(_,i)=><div key={i}
+                  className={"flex aspect-square items-center justify-center border border-dashed text-center text-[10px] "+(cards[i]?"border-blue-300 bg-blue-50 text-blue-900":"border-slate-200 text-slate-400")}>
+                    {cards[i]?.code||"Slot "+(i+1)}
+                </div>)}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">Lembar ini hanya petunjuk posisi. Tombol Preview cetak menghasilkan kartu dengan QR sebenarnya dan posisi bolak-balik yang disesuaikan.</p>
+            </div>
+          </div>
+        </aside>
+      </div>}
+      <nav className="mt-7 flex flex-wrap gap-5 text-sm text-blue-700">
+        <a href="/admin/provider">Provider V1</a><a href="/admin/provider/bulk-create">Bulk Create V1</a>
       </nav>
     </section>
   </main>;
