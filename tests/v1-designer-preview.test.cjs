@@ -131,7 +131,7 @@ test("renderer masks uploaded QR before drawing exactly one new verified V1 QR",
     await mod.renderV1Card({
       card:{code:"ULAS-00206",url:layouts.v1CardUrl("ULAS-00206")},
       design:"navy_left",mode:"black",pixels:1000,
-      placement:layouts.v1DefaultPlacement("navy_left"),
+      placement:layouts.v1UploadedTemplatePlacement("navy_left"),
       templateDataUrl:"data:image/png;base64,not-used-in-stub",
       templateQrCleanup:layouts.v1DefaultTemplateQrCleanup("navy_left"),
       showTemplateNfc:true,
