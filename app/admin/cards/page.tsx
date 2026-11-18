@@ -101,8 +101,6 @@ setResult({
 });
 
 setCardCode("");
-
-      setCardCode("");
     } catch (err) {
       setError(
         err instanceof Error
@@ -129,7 +127,7 @@ setCardCode("");
           </h1>
 
           <p className="text-sm text-gray-500 mt-2">
-            Buat kartu baru dan generate PIN aktivasi.
+            Buat kartu V1 dengan kode otomatis atau kode stok cetak. PIN hanya ditampilkan sekali.
           </p>
         </div>
 
@@ -163,13 +161,12 @@ setCardCode("");
               onChange={(e) =>
                 setCardCode(e.target.value.toUpperCase())
               }
-              placeholder="Contoh: ULAS-00126"
+              placeholder="Kosongkan untuk kode otomatis"
               className="w-full border border-gray-300 rounded-xl px-4 py-3 outline-none focus:border-black"
-              required
             />
 
             <p className="text-xs text-gray-500 mt-2">
-              Format: ULAS-00125
+              Kosongkan untuk nomor berikutnya secara otomatis setelah V1 khusus aktif, atau isi kode stok cetak yang belum digunakan.
             </p>
           </div>
 

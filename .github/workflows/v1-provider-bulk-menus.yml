@@ -14,6 +14,13 @@ on:
       - "tests/v1-bulk-csv.test.cjs"
       - "tests/v1-project-guard.test.cjs"
       - "tests/v1-readiness.test.cjs"
+      - "tests/v1-cutover-isolation.test.cjs"
+      - "app/api/cards/create/route.ts"
+      - "app/api/cards/activate/route.ts"
+      - "app/api/v1/provider/cards/route.ts"
+      - "app/r-v1/**"
+      - "app/card/**"
+      - "app/admin/cards/**"
       - "app/api/v1/provider/status/route.ts"
       - "app/admin/provider/diagnostics/page.tsx"
       - ".github/workflows/v1-provider-bulk-menus.yml"
@@ -26,4 +33,4 @@ jobs:
         with:
           node-version: 20
       - run: npm install --no-audit --no-fund
-      - run: node --test tests/v1-provider-bulk-menus.test.cjs tests/v1-bulk-csv.test.cjs tests/v1-project-guard.test.cjs tests/v1-readiness.test.cjs
+      - run: node --test tests/v1-provider-bulk-menus.test.cjs tests/v1-bulk-csv.test.cjs tests/v1-project-guard.test.cjs tests/v1-readiness.test.cjs tests/v1-cutover-isolation.test.cjs

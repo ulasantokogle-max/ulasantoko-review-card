@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { v1SupabaseServer, hasDedicatedV1Database, canIssueNewV1Cards } from "@/lib/v1-supabase";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { hashActivationPin, generateActivationPin } from "@/lib/pin";
 import { randomInt } from "node:crypto";
@@ -9,14 +9,7 @@ export const dynamic = "force-dynamic";
 const adminKey = process.env.ADMIN_KEY;
 
 function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error("Supabase server environment is not configured.");
-  }
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  return v1SupabaseServer();
 }
 
 function generateCardCode() {
@@ -57,6 +50,12 @@ export async function POST(request: NextRequest) {
     }
 
 
+    // Keep existing legacy behavior until V1-only environment is installed.
+    // In isolated mode, never issue cards before migration is verified.
+    if (hasDedicatedV1Database() && !(await canIssueNewV1Cards())) {
+      return NextResponse.json({success:false,message:"Database V1 baru belum siap untuk penerbitan kartu."},
+        {status:503,headers:{"Cache-Control":"no-store"}});
+    }
     let cardCode = cardCodeInput;
 
     if (cardCode && !/^ULAS-\d{5,}$/.test(cardCode)) {
@@ -67,6 +66,27 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // Dedicated V1: allocate sequentially through the same atomic RPC as
+    // Provider Bulk Create. Never use the legacy random-code allocator here.
+    if (!cardCode && hasDedicatedV1Database()) {
+      const pin = generateActivationPin();
+      const { data, error } = await supabase.rpc("v1_bulk_create_cards", {
+        p_pin_hashes: [hashActivationPin(pin)],
+      });
+      if (error || !Array.isArray(data) || data.length !== 1 ||
+          typeof data[0]?.card_code !== "string") {
+        return NextResponse.json({
+          success: false, message: "Pembuatan kartu V1 belum siap. Periksa koneksi database.",
+        }, { status: 503, headers: { "Cache-Control": "no-store" } });
+      }
+      return NextResponse.json({
+        success: true, message: "Kartu berhasil dibuat.",
+        card_code: data[0].card_code,
+        activation_pin: pin,
+        status: "inactive",
+      }, { status: 201, headers: { "Cache-Control": "no-store" } });
     }
 
     let attempts = 0;
@@ -147,7 +167,7 @@ export async function POST(request: NextRequest) {
         activation_pin: activationPin,
         status: card.status,
       },
-      { status: 201 }
+      { status: 201, headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
     console.error("CREATE_CARD_ROUTE_ERROR", error);
