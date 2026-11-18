@@ -2,7 +2,7 @@
 import {useEffect,useState} from "react";
 import {parseV1BulkCsv} from "@/lib/v1-bulk-csv";
 import {
-  V1_DESIGNS,v1CardUrl,v1DefaultPlacement,v1DefaultTemplateQrCleanup,v1PageLayout,v1MirrorSlot,
+  V1_DESIGNS,v1CardUrl,v1DefaultPlacement,v1UploadedTemplatePlacement,v1DefaultTemplateQrCleanup,v1PageLayout,v1MirrorSlot,
   type V1CardData,type V1DesignKey,type V1QRMode,type V1QRPlacement,
   type V1Side,type V1Paper,type V1Flip,type V1TemplateQrCleanup
 } from "@/lib/v1-designer-layout";
@@ -17,6 +17,7 @@ export default function BulkDesignerV1Page() {
   const [backDesign,setBackDesign]=useState<V1DesignKey>("navy_left");
   const [templates,setTemplates]=useState<Partial<Record<V1DesignKey,string>>>({});
   const [templateCleanup,setTemplateCleanup]=useState<Partial<Record<V1DesignKey,V1TemplateQrCleanup>>>({});
+  const [templateNfc,setTemplateNfc]=useState<Partial<Record<V1DesignKey,boolean>>>({});
   const [frontPosition,setFrontPosition]=useState<V1QRPlacement>(v1DefaultPlacement("navy_right"));
   const [backPosition,setBackPosition]=useState<V1QRPlacement>(v1DefaultPlacement("navy_left"));
   const [mode,setMode]=useState<V1QRMode>("rainbow");
@@ -48,11 +49,12 @@ export default function BulkDesignerV1Page() {
       card:first,design:selectedDesign,mode,placement:selectedPlacement,
       templateDataUrl:templates[selectedDesign],
       templateQrCleanup:templates[selectedDesign]?templateCleanup[selectedDesign]:undefined,
+      showTemplateNfc:templates[selectedDesign]?(templateNfc[selectedDesign]??true):false,
       pixels:650,
     }).then(canvas=>{if(!cancelled)setPreview(canvas.toDataURL("image/png"));})
       .catch(e=>{if(!cancelled)setPreviewError(e instanceof Error?e.message:"Preview gagal.");});
     return ()=>{cancelled=true;};
-  },[first,selectedDesign,mode,selectedPlacement,templates,templateCleanup]);
+  },[first,selectedDesign,mode,selectedPlacement,templates,templateCleanup,templateNfc]);
 
   async function verifyCodes(codes:string[]){
     const response=await fetch("/api/v1/provider/validate-cards",{
@@ -96,16 +98,26 @@ export default function BulkDesignerV1Page() {
       // Default to covering the QR already printed in uploaded artwork.
       // The operator can adjust or disable this if the template is QR-free.
       setTemplateCleanup(old=>({...old,[key]:v1DefaultTemplateQrCleanup(key)}));
-      // The uploaded design becomes the active design for the selected side.
-      changeDesign(key);
+      setTemplateNfc(old=>({...old,[key]:true}));
+      // Pick a position inside the uploaded artwork's blue QR box (not the
+      // larger generic preset QR, which can overlap the Google star row).
+      if(side==="front"){
+        setFrontDesign(key);
+        setFrontPosition(v1UploadedTemplatePlacement(key));
+      }else{
+        setBackDesign(key);
+        setBackPosition(v1UploadedTemplatePlacement(key));
+      }
       setError("");
     }catch(e){setError(e instanceof Error?e.message:"Template gagal diproses.");}
   }
   function changeDesign(next:V1DesignKey){
     if(side==="front"){
-      setFrontDesign(next);setFrontPosition(v1DefaultPlacement(next));
+      setFrontDesign(next);
+      setFrontPosition(templates[next]?v1UploadedTemplatePlacement(next):v1DefaultPlacement(next));
     }else{
-      setBackDesign(next);setBackPosition(v1DefaultPlacement(next));
+      setBackDesign(next);
+      setBackPosition(templates[next]?v1UploadedTemplatePlacement(next):v1DefaultPlacement(next));
     }
   }
   function changeTemplateCleanup(patch:Partial<V1TemplateQrCleanup>){
@@ -130,6 +142,7 @@ export default function BulkDesignerV1Page() {
       placement:face==="front"?frontPosition:backPosition,
       templateDataUrl:templates[design],
       templateQrCleanup:templates[design]?templateCleanup[design]:undefined,
+      showTemplateNfc:templates[design]?(templateNfc[design]??true):false,
     };
   }
   async function downloadFirstPng(){
@@ -255,19 +268,20 @@ export default function BulkDesignerV1Page() {
                 {templates[design.key] && <button className="mt-1 text-xs text-blue-700 underline" onClick={()=>{
                   setTemplates(old=>({...old,[design.key]:undefined}));
                   setTemplateCleanup(old=>({...old,[design.key]:undefined}));
+                  setTemplateNfc(old=>({...old,[design.key]:undefined}));
                 }}>Pakai desain bawaan</button>}
               </div>)}
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <label className="block text-xs font-semibold">Desain depan
                 <select className="mt-1 w-full rounded-lg border p-2 text-sm" value={frontDesign}
-                  onChange={e=>{const next=e.target.value as V1DesignKey;setFrontDesign(next);setFrontPosition(v1DefaultPlacement(next));}}>
+                  onChange={e=>{const next=e.target.value as V1DesignKey;setFrontDesign(next);setFrontPosition(templates[next]?v1UploadedTemplatePlacement(next):v1DefaultPlacement(next));}}>
                   {V1_DESIGNS.map(d=><option value={d.key} key={d.key}>{d.title}</option>)}
                 </select>
               </label>
               <label className="block text-xs font-semibold">Desain belakang
                 <select className="mt-1 w-full rounded-lg border p-2 text-sm" value={backDesign}
-                  onChange={e=>{const next=e.target.value as V1DesignKey;setBackDesign(next);setBackPosition(v1DefaultPlacement(next));}}>
+                  onChange={e=>{const next=e.target.value as V1DesignKey;setBackDesign(next);setBackPosition(templates[next]?v1UploadedTemplatePlacement(next):v1DefaultPlacement(next));}}>
                   {V1_DESIGNS.map(d=><option value={d.key} key={d.key}>{d.title}</option>)}
                 </select>
               </label>
@@ -280,6 +294,7 @@ export default function BulkDesignerV1Page() {
             </div>
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <h3 className="text-sm font-semibold">Atur posisi & ukuran QR — {side==="front"?"depan":"belakang"}</h3>
+              {templates[selectedDesign] && <p className="mt-1 text-xs text-blue-800">Untuk gambar custom, ukuran awal QR 26%, X {selectedDesign.endsWith("_left")?"31":"69"}%, Y 58% agar masuk di kotak desain tanpa menutup bintang.</p>}
               {([["x","Posisi horizontal (X)",15,85],["y","Posisi vertikal (Y)",25,78],["size","Ukuran QR",25,43]] as const).map(([field,label,min,max])=>
                 <label className="mt-3 block text-xs" key={field}>{label} — <strong>{selectedPlacement[field]}%</strong>
                   <input className="mt-1 block w-full" type="range" min={min} max={max} value={selectedPlacement[field]}
@@ -301,6 +316,12 @@ export default function BulkDesignerV1Page() {
                 Template ini sudah memiliki QR lama — tutup QR lama
               </label>
               {currentCleanup.enabled && <>
+                <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-blue-900">
+                  <input type="checkbox"
+                    checked={templateNfc[selectedDesign]??true}
+                    onChange={e=>setTemplateNfc(old=>({...old,[selectedDesign]:e.target.checked}))}/>
+                  Tampilkan gambar Tap NFC di area kanan/kiri yang sudah dibersihkan
+                </label>
                 {([["x","Posisi QR lama horizontal (X)",15,85],
                    ["y","Posisi QR lama vertikal (Y)",25,80],
                    ["size","Ukuran area penutup",24,43]] as const).map(([field,label,min,max])=>
