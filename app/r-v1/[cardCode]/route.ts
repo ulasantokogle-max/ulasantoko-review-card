@@ -11,13 +11,17 @@ export const revalidate = 0;
 function isApprovedGoogleReviewUrl(value: string): boolean {
   try {
     const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || url.port || url.hash) return false;
+    // Preserve legacy V1 cards. Three existing active cards were saved with
+    // genuine Google Maps short URLs instead of the write-review composer.
+    // Only an exact Google-owned hostname and simple short-link token qualify.
+    if (url.hostname === "maps.app.goo.gl") {
+      return /^\/[A-Za-z0-9_-]{10,}$/.test(url.pathname) && !url.search;
+    }
     return (
-      url.protocol === "https:" &&
       url.hostname === "search.google.com" &&
       url.pathname === "/local/writereview" &&
-      /^[-_A-Za-z0-9]+$/.test(url.searchParams.get("placeid") ?? "") &&
-      !url.username &&
-      !url.password
+      /^[-_A-Za-z0-9]+$/.test(url.searchParams.get("placeid") ?? "")
     );
   } catch {
     return false;
@@ -38,7 +42,7 @@ export async function GET(
   const { cardCode } = await params;
   const code = cardCode?.trim().toUpperCase() ?? "";
 
-  if (!/^ULAS-\d{5,}$/.test(code)) {
+  if (!/^ULAS-\d{4,}$/.test(code)) {
     return failure("Kode kartu tidak valid.", 400);
   }
 
