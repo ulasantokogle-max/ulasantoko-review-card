@@ -294,7 +294,7 @@ export default function BulkDesignerV1Page() {
             </div>
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <h3 className="text-sm font-semibold">Atur posisi & ukuran QR — {side==="front"?"depan":"belakang"}</h3>
-              {templates[selectedDesign] && <p className="mt-1 text-xs text-blue-800">Untuk gambar custom, ukuran awal QR 24%, X {selectedDesign.endsWith("_left")?"31":"69"}%, Y 58% agar masuk di kotak desain tanpa menutup bintang.</p>}
+              {templates[selectedDesign] && <p className="mt-1 text-xs text-blue-800">Untuk gambar custom, ukuran awal QR 26%, X {selectedDesign.endsWith("_left")?"31":"69"}%, Y 58% agar masuk di kotak desain tanpa menutup bintang.</p>}
               {([["x","Posisi horizontal (X)",15,85],["y","Posisi vertikal (Y)",25,78],["size","Ukuran QR",25,43]] as const).map(([field,label,min,max])=>
                 <label className="mt-3 block text-xs" key={field}>{label} — <strong>{selectedPlacement[field]}%</strong>
                   <input className="mt-1 block w-full" type="range" min={min} max={max} value={selectedPlacement[field]}
