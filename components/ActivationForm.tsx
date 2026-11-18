@@ -10,7 +10,7 @@ export default function ActivationForm() {
 
   useEffect(() => {
     const providedCode = new URLSearchParams(window.location.search).get("card_code");
-    if (providedCode && /^ULAS-\d{5,}$/.test(providedCode.trim().toUpperCase())) {
+    if (providedCode && /^ULAS-\d{4,}$/.test(providedCode.trim().toUpperCase())) {
       setCardCode(providedCode.trim().toUpperCase());
     }
   }, []);
@@ -32,7 +32,7 @@ export default function ActivationForm() {
     const normalizedPin = activationPin.trim();
 
     // Validasi kode kartu
-    if (!/^ULAS-\d{5,}$/.test(normalizedCardCode)) {
+    if (!/^ULAS-\d{4,}$/.test(normalizedCardCode)) {
       setMessage("Format kode kartu tidak valid.");
       setLoading(false);
       return;

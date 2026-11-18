@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!/^ULAS-\d{5,}$/.test(cardCode)) {
+    if (!/^ULAS-\d{4,}$/.test(cardCode)) {
       return NextResponse.json(
         {
           success: false,
