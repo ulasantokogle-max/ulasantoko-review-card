@@ -149,13 +149,19 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
   const position=v1SafePlacement(settings.placement);
   const qr=await qrCanvas(card.url,mode);
   const px=size*position.size/100;
-  // On uploaded art a QR can also be baked into the *same* blue frame.
-  // Clear its interior (but not the blue outline) before drawing the new
-  // validated V1 QR, with sufficient white quiet zone for phone cameras.
-  const whiteBacking=custom?size*Math.min(29,position.size+3)/100:px+size*0.012;
-  ctx.fillStyle="#ffffff";
-  ctx.fillRect(size*position.x/100-whiteBacking/2,
-    size*position.y/100-whiteBacking/2,whiteBacking,whiteBacking);
+  // Uploaded templates already have a printed blue QR frame. Do not draw
+  // another, larger white rectangle outside the QR: its white border would
+  // cover the frame and look like an oversized outline.
+  // QRCode.toCanvas itself retains a 4-module white quiet zone, so an opaque
+  // QR image fully covers any old QR pixels in its own footprint and remains
+  // readable by phone cameras.
+  // Keep the previous backing untouched for built-in V1 designs.
+  if(!custom){
+    const whiteBacking=px+size*0.012;
+    ctx.fillStyle="#ffffff";
+    ctx.fillRect(size*position.x/100-whiteBacking/2,
+      size*position.y/100-whiteBacking/2,whiteBacking,whiteBacking);
+  }
   ctx.drawImage(qr,size*position.x/100-px/2,size*position.y/100-px/2,px,px);
   // The verified card code remains in CSV and inside the generated QR URL,
   // but is intentionally never printed onto the card artwork.
