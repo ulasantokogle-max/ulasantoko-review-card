@@ -68,24 +68,110 @@ function drawNfc(ctx:CanvasRenderingContext2D,x:number,y:number,s:number,color:s
 function drawTemplateTapNfc(ctx:CanvasRenderingContext2D,x:number,y:number,s:number) {
   ctx.save();
   const blue="#135cb1";
-  ctx.strokeStyle=blue;
-  ctx.fillStyle=blue;
-  ctx.lineWidth=Math.max(2,s*.006);
-  ctx.lineCap="round";
-  // A recognizable phone silhouette on the right-hand side of the separator.
-  ctx.strokeRect(x-s*.075,y-s*.085,s*.075,s*.13);
-  ctx.fillRect(x-s*.05,y+s*.027,s*.025,s*.005);
-  // Three wireless tap arcs on the right of the phone.
+  ctx.strokeStyle=blue;ctx.fillStyle=blue;
+  ctx.lineWidth=Math.max(2,s*.0045);ctx.lineCap="round";ctx.lineJoin="round";
+  // Center phone and wireless signal in the former QR placeholder slot.
+  const phoneX=x-s*.085,phoneY=y-s*.083;
+  ctx.strokeRect(phoneX,phoneY,s*.083,s*.143);
+  ctx.fillRect(phoneX+s*.029,phoneY+s*.129,s*.025,s*.004);
   for(let i=0;i<3;i++){
     ctx.beginPath();
-    ctx.arc(x+s*.006,y-s*.017,s*(.029+i*.018),-Math.PI/2,Math.PI/2);
+    ctx.arc(x+s*.005,y-s*.013,s*(.025+i*.016),-Math.PI/2,Math.PI/2);
     ctx.stroke();
   }
-  ctx.textAlign="center";
-  ctx.fillStyle="#123b78";
-  typography(ctx,s,29,true);
-  ctx.fillText("TAP NFC",x+s*.006,y+s*.115);
+  ctx.textAlign="center";ctx.fillStyle="#123b78";
+  typography(ctx,s,25,true);
+  ctx.fillText("TAP NFC",x,y+s*.115);
   ctx.restore();
+}
+
+/** Google Review print artwork for the two left-QR V1 presets.
+ * All geometry is relative to the 10x10 cm card; never changes QR URL or data.
+ */
+function drawReferenceLeftCard(ctx:CanvasRenderingContext2D,s:number){
+  const blue="#1262fa",navy="#102d69";
+  const S=(v:number)=>v*s;
+  const polygon=(points:number[][],color:string)=>{
+    ctx.fillStyle=color;ctx.beginPath();
+    points.forEach(([x,y],i)=>i?ctx.lineTo(S(x),S(y)):ctx.moveTo(S(x),S(y)));
+    ctx.closePath();ctx.fill();
+  };
+  ctx.fillStyle="#ffffff";ctx.fillRect(0,0,s,s);
+  polygon([[0,0],[.252,0],[0,.252]],"#ff071c");
+  polygon([[.145,0],[.25,0],[0,.25],[0,.16]],"#ffbf0b");
+  ctx.textAlign="center";ctx.fillStyle="#070707";
+  ctx.font=`700 ${Math.round(S(.071))}px Arial,Helvetica,sans-serif`;
+  ctx.fillText("Beri Ulasan di",S(.5),S(.125));
+  // Reference-style multicolour Google wordmark, drawn on the same baseline.
+  ctx.font=`700 ${Math.round(S(.146))}px Arial,Helvetica,sans-serif`;
+  const word="Google",colors=["#1769f5","#f31524","#ffbd05","#1769f5","#05c84e","#ef1724"];
+  const widths=[...word].map(c=>ctx.measureText(c).width);
+  const total=widths.reduce((a,b)=>a+b,0);
+  let x=(s-total)/2;ctx.textAlign="left";
+  [...word].forEach((letter,i)=>{ctx.fillStyle=colors[i];ctx.fillText(letter,x,S(.283));x+=widths[i];});
+  // Five gold stars as crisp vector shapes.
+  ctx.fillStyle="#ffbd08";
+  for(let n=0;n<5;n++){
+    const cx=S(.29+n*.105),cy=S(.381),ro=S(.043),ri=S(.020);
+    ctx.beginPath();
+    for(let j=0;j<10;j++){
+      const theta=-Math.PI/2+j*Math.PI/5,r=j%2?ri:ro;
+      if(j===0)ctx.moveTo(cx+Math.cos(theta)*r,cy+Math.sin(theta)*r);
+      else ctx.lineTo(cx+Math.cos(theta)*r,cy+Math.sin(theta)*r);
+    }
+    ctx.closePath();ctx.fill();
+  }
+  // Strict printed QR frame; the QR itself is drawn later, inside this outline.
+  ctx.strokeStyle=blue;ctx.lineWidth=S(.010);
+  ctx.strokeRect(S(.16),S(.44),S(.31),S(.28));
+  ctx.strokeStyle="#9ec0ef";ctx.lineWidth=S(.006);ctx.lineCap="round";
+  ctx.beginPath();ctx.moveTo(S(.51),S(.475));ctx.lineTo(S(.51),S(.69));ctx.stroke();
+  // Original reference has a blue circular tap area and a hand touching a phone.
+  const cx=S(.685),cy=S(.58);
+  ctx.beginPath();ctx.arc(cx,cy,S(.145),0,Math.PI*2);
+  ctx.fillStyle="#d3e7ff";ctx.fill();
+  ctx.strokeStyle=blue;ctx.lineWidth=S(.009);ctx.lineCap="round";ctx.lineJoin="round";
+  const phoneX=S(.620),phoneY=S(.481),phoneW=S(.124),phoneH=S(.177);
+  ctx.beginPath();ctx.roundRect(phoneX,phoneY,phoneW,phoneH,S(.016));ctx.stroke();
+  ctx.strokeStyle="#90befa";ctx.lineWidth=S(.005);
+  ctx.beginPath();ctx.moveTo(S(.671),S(.495));ctx.lineTo(S(.697),S(.495));ctx.stroke();
+  ctx.beginPath();ctx.moveTo(S(.674),S(.645));ctx.lineTo(S(.692),S(.645));ctx.stroke();
+  ctx.strokeStyle=blue;ctx.lineWidth=S(.008);
+  for(let i=0;i<3;i++){
+    ctx.beginPath();ctx.arc(S(.647),S(.572),S(.018+i*.016),-.8,.8);ctx.stroke();
+  }
+  // Finger, palm and sleeve: independent blue outline, like supplied tap graphic.
+  ctx.beginPath();
+  ctx.moveTo(S(.80),S(.67));ctx.lineTo(S(.76),S(.625));
+  ctx.lineTo(S(.726),S(.606));ctx.quadraticCurveTo(S(.708),S(.593),S(.700),S(.61));
+  ctx.quadraticCurveTo(S(.690),S(.626),S(.712),S(.645));
+  ctx.lineTo(S(.740),S(.675));
+  ctx.moveTo(S(.736),S(.62));ctx.lineTo(S(.751),S(.64));
+  ctx.moveTo(S(.756),S(.615));ctx.lineTo(S(.775),S(.636));
+  ctx.stroke();
+  // Rounded, pale-blue CTA with both lines centered.
+  ctx.fillStyle="#d1e8ff";ctx.beginPath();
+  ctx.roundRect(S(.092),S(.744),S(.816),S(.119),S(.058));ctx.fill();
+  ctx.textAlign="center";ctx.fillStyle="#115df2";
+  ctx.font=`700 ${Math.round(S(.039))}px Arial,Helvetica,sans-serif`;
+  ctx.fillText("Scan QR atau tap NFC",S(.5),S(.796));
+  ctx.fillStyle="#121212";
+  ctx.font=`500 ${Math.round(S(.029))}px Arial,Helvetica,sans-serif`;
+  ctx.fillText("untuk memberikan ulasan di Google",S(.5),S(.833));
+  // Navy/blue YukReview.id lock-up; no white rectangle on top of branding.
+  ctx.textAlign="left";
+  const logoX=S(.602),logoY=S(.915);
+  ctx.fillStyle=blue;ctx.beginPath();ctx.roundRect(logoX,logoY-S(.026),S(.044),S(.036),S(.012));ctx.fill();
+  ctx.beginPath();ctx.moveTo(logoX+S(.009),logoY+S(.007));ctx.lineTo(logoX+S(.007),logoY+S(.019));ctx.lineTo(logoX+S(.022),logoY+S(.006));ctx.fill();
+  ctx.fillStyle="#ffffff";ctx.font=`700 ${Math.round(S(.028))}px Arial`;ctx.fillText("★",logoX+S(.008),logoY+S(.002));
+  ctx.strokeStyle=blue;ctx.lineWidth=S(.003);
+  for(let i=0;i<2;i++){ctx.beginPath();ctx.arc(logoX+S(.036),logoY-S(.031),S(.013+i*.01),-1.4,-.18);ctx.stroke();}
+  ctx.font=`700 ${Math.round(S(.036))}px Arial,Helvetica,sans-serif`;
+  ctx.fillStyle=navy;ctx.fillText("Yuk",S(.649),logoY+S(.006));
+  ctx.fillStyle=blue;ctx.fillText("Review",S(.718),logoY+S(.006));
+  ctx.fillStyle=navy;ctx.fillText(".id",S(.851),logoY+S(.006));
+  polygon([[.81,1],[1,.771],[1,1]],"#04cc46");
+  polygon([[.858,1],[1,.835],[1,1]],"#0c5afa");
 }
 
 /** Browser-only: templates and original PIN CSV are never sent to a server. */
@@ -100,6 +186,7 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
   const preset=V1_DESIGNS.find(x=>x.key===design);
   if(!preset)throw new Error("Template V1 tidak valid.");
   const custom=settings.templateDataUrl;
+  const referenceLeft=!custom&&(design==="navy_left"||design==="white_left");
   if(custom){
     const img=await imageFromDataUrl(custom);
     cropFill(ctx,img,size);
@@ -122,6 +209,8 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
         drawTemplateTapNfc(ctx,size*cleanup.x/100,size*cleanup.y/100,size);
       }
     }
+  } else if(referenceLeft){
+    drawReferenceLeftCard(ctx,size);
   } else {
     ctx.fillStyle=preset.dark?"#112e57":"#ffffff";ctx.fillRect(0,0,size,size);
     if(preset.dark) {
@@ -156,21 +245,15 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
   // QR image fully covers any old QR pixels in its own footprint and remains
   // readable by phone cameras.
   // Keep the previous backing untouched for built-in V1 designs.
-  if(!custom){
+  if(!custom&&!referenceLeft){
     const whiteBacking=px+size*0.012;
     ctx.fillStyle="#ffffff";
     ctx.fillRect(size*position.x/100-whiteBacking/2,
       size*position.y/100-whiteBacking/2,whiteBacking,whiteBacking);
   }
   ctx.drawImage(qr,size*position.x/100-px/2,size*position.y/100-px/2,px,px);
-  // The verified card code remains in CSV and inside the generated QR URL,
-  // but is intentionally never printed onto the card artwork.
-  // Uploaded templates sometimes have their own code baked into the bottom
-  // right corner: cover only that small area, not the YukReview logo beside it.
-  if(custom){
-    ctx.fillStyle="#ffffff";
-    ctx.fillRect(size*.80,size*.912,size*.165,size*.055);
-  }
+  // Do not paint over the uploaded artwork footer: the old mask obscured
+  // the official YukReview branding. The card code remains only in QR/CSV.
   return canvas;
 }
 export function v1CanvasPng(canvas:HTMLCanvasElement):Promise<Blob> {

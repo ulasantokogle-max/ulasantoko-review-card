@@ -50,14 +50,16 @@ export function v1SafeTemplateQrCleanup(v: V1TemplateQrCleanup): V1TemplateQrCle
 
 
 export function v1DefaultPlacement(key: V1DesignKey): V1QRPlacement {
-  return {x:key.endsWith("_left") ? 29 : 71,y:55,size:35};
+  return key==="navy_left"||key==="white_left"
+    ? {x:31,y:58,size:26}
+    : {x:71,y:55,size:35};
 }
-/** A 24%-width QR fits inside the ~31% printed QR frame of uploaded V1 art.
+/** A 26%-width QR fits inside the ~31% printed QR frame of uploaded V1 art.
  * Unlike built-in presets this never overlaps the Google five-star row.
  * It only applies to user-uploaded templates; defaults for built-ins stay as-is.
  */
 export function v1UploadedTemplatePlacement(key: V1DesignKey): V1QRPlacement {
-  return {x:key.endsWith("_left") ? 31 : 69,y:58,size:24};
+  return {x:key.endsWith("_left") ? 31 : 69,y:58,size:26};
 }
 export function v1SafePlacement(p: V1QRPlacement): V1QRPlacement {
   const size = Math.max(24, Math.min(43, Number(p.size) || 35));

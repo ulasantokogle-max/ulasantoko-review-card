@@ -49,7 +49,7 @@ test("QR position and size clamp within card safety margins",()=>{
   const p=layouts.v1SafePlacement({x:0,y:200,size:90});
   assert.equal(p.size,43);
   assert.ok(p.x>=24.5&&p.y<=75.5);
-  assert.deepEqual(layouts.v1DefaultPlacement("navy_left"),{x:29,y:55,size:35});
+  assert.deepEqual(layouts.v1DefaultPlacement("navy_left"),{x:31,y:58,size:26});
   assert.deepEqual(layouts.v1DefaultPlacement("white_right"),{x:71,y:55,size:35});
 });
 test("export module generates real PNG, client-side ZIP and A3+ print options",()=>{
@@ -150,9 +150,8 @@ test("renderer masks uploaded QR before drawing exactly one new verified V1 QR",
     assert.ok(!logs.some(x=>x.op==="fillRect"&&x.args[2]>=240&&x.args[2]<=270),
       "an uploaded template must not get an additional white QR outline");
     assert.ok(qrDraw[1]>fillOld,"the generated QR is rendered over the template after cleanup");
-    const sourceCodeMask=logs.find(x=>x.op==="fillRect"&&x.args[0]===800);
-    assert.ok(sourceCodeMask,"embedded ULAS code on uploaded artwork must be hidden");
-    assert.deepEqual(sourceCodeMask.args,[800,912,165,55]);
+    assert.ok(!logs.some(x=>x.op==="fillRect"&&x.args[0]===800&&x.args[1]===912),
+      "footer YukReview must not be covered by a white rectangle");
     assert.ok(!logs.some(x=>x.op==="fillText"&&x.args[0]==="ULAS-00206"),
       "the printed card must not display its ULAS code");
   }finally{
@@ -164,13 +163,13 @@ test("renderer masks uploaded QR before drawing exactly one new verified V1 QR",
 test("uploaded QR fits completely below the five stars and inside the original frame",()=>{
   const left=layouts.v1UploadedTemplatePlacement("navy_left");
   const right=layouts.v1UploadedTemplatePlacement("white_right");
-  assert.deepEqual(left,{x:31,y:58,size:24});
-  assert.deepEqual(right,{x:69,y:58,size:24});
+  assert.deepEqual(left,{x:31,y:58,size:26});
+  assert.deepEqual(right,{x:69,y:58,size:26});
   assert.ok(left.y-left.size/2>=45,"QR quiet-zone starts below the five-star row");
   assert.ok(left.x-left.size/2>16,"QR stays inside blue frame left edge");
   assert.ok(left.x+left.size/2<47,"QR stays inside blue frame right edge");
-  assert.deepEqual(layouts.v1DefaultPlacement("navy_left"),{x:29,y:55,size:35},
-    "existing built-in design defaults must remain unchanged");
+  assert.deepEqual(layouts.v1DefaultPlacement("navy_left"),{x:31,y:58,size:26},
+    "left QR preset uses reference frame position");
 });
 test("template NFC flag is respected consistently by preview, PNG, ZIP and print",()=>{
   assert.match(page,/showTemplateNfc:templates\[selectedDesign\]\?\(templateNfc\[selectedDesign\]\?\?true\):false/);
@@ -186,10 +185,10 @@ test("V1 card renderer hides card code but preserves the full verified QR URL",(
   assert.doesNotMatch(exportsSource,/ctx\.fillText\(card\.code/);
   assert.match(exportsSource,/ctx\.drawImage\(qr,/);
   assert.match(exportsSource,/if\(custom\)/);
-  assert.equal(layouts.v1SafePlacement({x:31,y:58,size:24}).size,24,
-    "the safety clamp must not silently enlarge 24% QR to 25%");
-  assert.equal(layouts.v1DefaultPlacement("navy_left").size,35,
-    "built-in QR designs keep their prior default size");
+  assert.equal(layouts.v1SafePlacement({x:31,y:58,size:26}).size,26,
+    "the safety clamp must preserve a 26% QR");
+  assert.equal(layouts.v1DefaultPlacement("navy_left").size,26,
+    "left QR preset uses reference-safe QR size");
   assert.match(page,/v1UploadedTemplatePlacement\(key\)/);
 });
 
@@ -198,7 +197,7 @@ test("uploaded artwork uses the QR canvas only, with quiet zone for scanning",as
   assert.match(source,/width:720,margin:4,errorCorrectionLevel:"H"/);
   assert.match(source,/light:"#ffffff"/);
   assert.doesNotMatch(source,/light:"#0000"/);
-  assert.match(source,/if\(!custom\)\{\s*const whiteBacking=px\+size\*0\.012/);
+  assert.match(source,/if\(!custom&&!referenceLeft\)\{\s*const whiteBacking=px\+size\*0\.012/);
   assert.doesNotMatch(source,/Math\.min\(29,position\.size\+3\)/);
   assert.match(source,/ctx\.drawImage\(qr,size\*position\.x\/100-px\/2,size\*position\.y\/100-px\/2,px,px\)/);
   // Both the preview and every PNG/ZIP/PDF export share the renderer.
@@ -206,4 +205,24 @@ test("uploaded artwork uses the QR canvas only, with quiet zone for scanning",as
   assert.match(page,/renderV1Card\(renderSettings\(first,side\)\)/);
   assert.match(page,/renderV1Card\(renderSettings\(card,face\)\)/);
   assert.match(page,/renderV1Card\(renderSettings\(card,"front",1417\)\)/);
+});
+
+test("clean reference template defaults preserve native NFC and YukReview branding",()=>{
+  assert.match(page,/setTemplateNfc\(old=>\(\{\.\.\.old,\[key\]:false\}\)\)/);
+  assert.match(page,/v1DefaultTemplateQrCleanup\(key\),enabled:false/);
+  assert.match(page,/kotak QR biru dan ikon NFC/);
+  assert.doesNotMatch(exportsSource,/ctx\.fillRect\(size\*\.80,size\*\.912/);
+  assert.deepEqual(layouts.v1UploadedTemplatePlacement("white_left"),{x:31,y:58,size:26});
+});
+
+test("both built-in left QR designs share Google artwork and drawn hand NFC",()=>{
+  assert.deepEqual(layouts.v1DefaultPlacement("white_left"),{x:31,y:58,size:26});
+  assert.deepEqual(layouts.v1DefaultPlacement("navy_left"),{x:31,y:58,size:26});
+  assert.match(exportsSource,/design==="navy_left"\|\|design==="white_left"/);
+  assert.match(exportsSource,/drawReferenceLeftCard\(ctx,size\)/);
+  assert.match(exportsSource,/Finger, palm and sleeve/);
+  assert.match(exportsSource,/Beri Ulasan di/);
+  assert.match(exportsSource,/Scan QR atau tap NFC/);
+  assert.match(exportsSource,/Yuk/);
+  assert.doesNotMatch(exportsSource,/ctx\.fillRect\(size\*\.80,size\*\.912/);
 });
