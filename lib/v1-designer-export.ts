@@ -165,7 +165,13 @@ export function v1Zip(files:{name:string; bytes:Uint8Array}[]):Blob{
     offset+=local.length+file.bytes.length;
     centralSize+=record.length;
   }
-  chunks.push(...directory.map(entry=>entry.buffer));
+  // Directory entries are typed as Uint8Array<ArrayBufferLike> by Node typings.
+  // Copy into plain ArrayBuffer objects for the DOM Blob constructor.
+  for(const entry of directory){
+    const buffer=new ArrayBuffer(entry.byteLength);
+    new Uint8Array(buffer).set(entry);
+    chunks.push(buffer);
+  }
   const end=new Uint8Array(22), ev=new DataView(end.buffer);
   u32(ev,0,0x06054b50);u16(ev,8,files.length);u16(ev,10,files.length);
   u32(ev,12,centralSize);u32(ev,16,offset);
