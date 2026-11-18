@@ -68,23 +68,20 @@ function drawNfc(ctx:CanvasRenderingContext2D,x:number,y:number,s:number,color:s
 function drawTemplateTapNfc(ctx:CanvasRenderingContext2D,x:number,y:number,s:number) {
   ctx.save();
   const blue="#135cb1";
-  ctx.strokeStyle=blue;
-  ctx.fillStyle=blue;
-  ctx.lineWidth=Math.max(2,s*.006);
-  ctx.lineCap="round";
-  // A recognizable phone silhouette on the right-hand side of the separator.
-  ctx.strokeRect(x-s*.075,y-s*.085,s*.075,s*.13);
-  ctx.fillRect(x-s*.05,y+s*.027,s*.025,s*.005);
-  // Three wireless tap arcs on the right of the phone.
+  ctx.strokeStyle=blue;ctx.fillStyle=blue;
+  ctx.lineWidth=Math.max(2,s*.0045);ctx.lineCap="round";ctx.lineJoin="round";
+  // Center phone and wireless signal in the former QR placeholder slot.
+  const phoneX=x-s*.085,phoneY=y-s*.083;
+  ctx.strokeRect(phoneX,phoneY,s*.083,s*.143);
+  ctx.fillRect(phoneX+s*.029,phoneY+s*.129,s*.025,s*.004);
   for(let i=0;i<3;i++){
     ctx.beginPath();
-    ctx.arc(x+s*.006,y-s*.017,s*(.029+i*.018),-Math.PI/2,Math.PI/2);
+    ctx.arc(x+s*.005,y-s*.013,s*(.025+i*.016),-Math.PI/2,Math.PI/2);
     ctx.stroke();
   }
-  ctx.textAlign="center";
-  ctx.fillStyle="#123b78";
-  typography(ctx,s,29,true);
-  ctx.fillText("TAP NFC",x+s*.006,y+s*.115);
+  ctx.textAlign="center";ctx.fillStyle="#123b78";
+  typography(ctx,s,25,true);
+  ctx.fillText("TAP NFC",x,y+s*.115);
   ctx.restore();
 }
 
@@ -163,14 +160,8 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
       size*position.y/100-whiteBacking/2,whiteBacking,whiteBacking);
   }
   ctx.drawImage(qr,size*position.x/100-px/2,size*position.y/100-px/2,px,px);
-  // The verified card code remains in CSV and inside the generated QR URL,
-  // but is intentionally never printed onto the card artwork.
-  // Uploaded templates sometimes have their own code baked into the bottom
-  // right corner: cover only that small area, not the YukReview logo beside it.
-  if(custom){
-    ctx.fillStyle="#ffffff";
-    ctx.fillRect(size*.80,size*.912,size*.165,size*.055);
-  }
+  // Do not paint over the uploaded artwork footer: the old mask obscured
+  // the official YukReview branding. The card code remains only in QR/CSV.
   return canvas;
 }
 export function v1CanvasPng(canvas:HTMLCanvasElement):Promise<Blob> {
