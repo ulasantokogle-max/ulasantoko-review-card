@@ -74,3 +74,31 @@ test("Productmate fallback is only invoked after native resolver failure in both
  assert.match(activation,/!candidate.verified && !confirmedPlaceId/);
  assert.doesNotMatch(src,/V3_SUPABASE|v3Supabase|v2Supabase|wifiSupabase/);
 });
+
+test("Productmate candidate remains unverified when Google Places Details rejects the call",async()=>{
+ const exports={};
+ let calls=0;
+ const fetcher=async (url,options)=>{
+   calls++;
+   if(String(url).startsWith("https://maps.app.goo.gl/"))
+     return {status:302,headers:{get:()=>expanded}};
+   if(String(url).includes("productmate.com"))
+     return response({place_id:id,review_url,verification:"not_verified"});
+   return {ok:false,status:403};
+ };
+ const api=load(fetcher);
+ const candidate=await api.suggestV1ProductmatePlace(mapsUrl);
+ assert.equal(candidate.placeId,id);
+ assert.equal(candidate.verified,false);
+ assert.equal(candidate.name,"MJH (Media Jump Start Hub) Digital Solution");
+ assert.match(candidate.address,/17158/);
+ assert.equal(calls,3);
+});
+test("Productmate fallback needs manual preview before activation",()=>{
+ const ui=fs.readFileSync(path.join(__dirname,"../components/ActivationForm.tsx"),"utf8");
+ assert.match(ui,/candidateConfirmed/);
+ assert.match(ui,/Pratinjau formulir Google Review/);
+ assert.match(ui,/target="_blank" rel="noopener noreferrer"/);
+ assert.match(ui,/Boolean\(candidate && !candidateConfirmed\)/);
+ assert.match(ui,/setCandidateConfirmed\(false\)/);
+});
