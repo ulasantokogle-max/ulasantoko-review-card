@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { v1SupabaseServer, hasDedicatedV1Database, canIssueNewV1Cards } from "@/lib/v1-supabase";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { verifyActivationPin } from "@/lib/pin";
-import { resolveV1GooglePlaceId, suggestV1GooglePlace } from "@/lib/v1-google-maps";
+import { officialV1DirectReviewUrl, resolveV1GooglePlaceId, suggestV1GooglePlace } from "@/lib/v1-google-maps";
 
 export const dynamic = "force-dynamic";
 
@@ -237,7 +237,11 @@ function isSafeMapsShortLink(value: string): boolean {
   }
 }
 
-try {
+const directReviewUrl = officialV1DirectReviewUrl(googleMapsUrl);
+if (directReviewUrl) {
+  // The owner supplied a Google review composer URL directly: no Place ID extraction needed.
+  googleReviewUrl = directReviewUrl;
+} else try {
   const placeId = await resolveV1GooglePlaceId(googleMapsUrl);
   if (confirmedPlaceId && confirmedPlaceId !== placeId) {
     return NextResponse.json({success:false,message:"Konfirmasi bisnis tidak cocok dengan link Google."},{status:422});
