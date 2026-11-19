@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isProviderAuthenticated } from "@/lib/v1-provider-auth";
 import { v1SupabaseServer, hasDedicatedV1Database } from "@/lib/v1-supabase";
 import { getV1RateLimitStatus } from "@/lib/v1-rate-limit";
-import { officialV1DirectReviewUrl, resolveV1GooglePlaceId, suggestV1GooglePlace } from "@/lib/v1-google-maps";
+import { officialV1DirectReviewUrl, resolveV1GooglePlaceId, suggestV1GooglePlace, suggestV1ProductmatePlace } from "@/lib/v1-google-maps";
 
 export const dynamic = "force-dynamic";
 const headers = {"Cache-Control":"no-store, private"};
@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
         message:"Place ID terbaca langsung dari URL Google. Pastikan tujuan ulasannya benar."
       },{headers});
     } catch { /* Only try Places if no explicit Place ID can be read */ }
-    const candidate = await suggestV1GooglePlace(mapsUrl,businessName);
+    let candidate = await suggestV1GooglePlace(mapsUrl,businessName).catch(() => null);
+    if (!candidate) candidate = await suggestV1ProductmatePlace(mapsUrl).catch(() => null);
     if (!candidate) return NextResponse.json({
       status:"unresolved",
       message:process.env.V1_GOOGLE_PLACES_API_KEY

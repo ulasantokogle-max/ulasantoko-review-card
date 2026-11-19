@@ -259,3 +259,65 @@ export async function suggestV1GooglePlace(value: string, fallbackBusinessName =
   const candidate = possible[0];
   return { placeId: candidate.id, name: candidate.name, address: candidate.address, verified: false };
 }
+
+/**
+ * Optional external fallback for Google Maps shares that cannot be resolved by
+ * Google Places text search. Productmate only extracts a Place ID; its response
+ * is explicitly NOT verified. Therefore Google Places Details MUST independently
+ * confirm the exact business name before we offer it for manual confirmation.
+ *
+ * Does not read or write any card/PIN data and does not expose the V1 API key.
+ */
+export async function suggestV1ProductmatePlace(value: string): Promise<V1GooglePlaceCandidate | null> {
+  const googleKey = process.env.V1_GOOGLE_PLACES_API_KEY;
+  if (!googleKey) return null;
+  const expanded = await expandV1GoogleMapsUrl(value);
+  if (!expanded) return null;
+  const identity = placeIdentityFromMapsUrl(expanded);
+  if (!identity?.name) return null;
+  const endpoint = "https://productmate.com/api/v1/google-review-link";
+  const response = await fetch(endpoint, {
+    method:"POST", redirect:"manual", cache:"no-store",
+    headers:{"Content-Type":"application/json","Accept":"application/json"},
+    body:JSON.stringify({maps_url:value}),
+    signal:AbortSignal.timeout(9000),
+  });
+  if (!response.ok || response.status !== 200 ||
+      !(response.headers.get("content-type") || "").includes("application/json")) return null;
+  const raw = await response.text();
+  if (raw.length > 10000) return null;
+  let external: { place_id?: unknown; review_url?: unknown; verification?: unknown };
+  try { external = JSON.parse(raw); } catch { return null; }
+  const id = external.place_id;
+  if (typeof id !== "string" || !/^ChIJ[-_A-Za-z0-9]{8,}$/.test(id)) return null;
+  if (external.review_url !== `https://search.google.com/local/writereview?placeid=${id}`) return null;
+  if (external.verification !== "not_verified") return null;
+
+  // Independently obtain verified listing metadata from Google, not Productmate.
+  const details = await fetch("https://places.googleapis.com/v1/places/" + encodeURIComponent(id), {
+    headers:{"X-Goog-Api-Key":googleKey,
+      "X-Goog-FieldMask":"id,displayName,formattedAddress"},
+    signal:AbortSignal.timeout(7000),cache:"no-store",
+  });
+  if (!details.ok) return null;
+  const result = await details.json() as {
+    id?: string; displayName?:{text?: string}; formattedAddress?:string;
+  };
+  if (result.id !== id || typeof result.displayName?.text !== "string" ||
+      typeof result.formattedAddress !== "string") return null;
+  if (normalizePlaceTitle(result.displayName.text) !== normalizePlaceTitle(identity.name)) return null;
+  // If the two sources provide conflicting concrete addresses, reject. If
+  // Google's address is abbreviated, allow explicit human confirmation.
+  if (identity.address) {
+    const postA = identity.address.match(/\b\d{5}\b/)?.[0];
+    const postB = result.formattedAddress.match(/\b\d{5}\b/)?.[0];
+    const numberA = identity.address.match(/\b(?:no\.?|nomor)\s*(\d{1,5})\b/i)?.[1];
+    const numberB = result.formattedAddress.match(/\b(?:no\.?|nomor)\s*(\d{1,5})\b/i)?.[1];
+    if ((postA && postB && postA !== postB) ||
+        (numberA && numberB && numberA !== numberB)) return null;
+  }
+  return {
+    placeId:id,name:result.displayName.text,address:result.formattedAddress,
+    verified:false, // NEVER auto-activate a third-party-derived candidate.
+  };
+}

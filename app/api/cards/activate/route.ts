@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { v1SupabaseServer, hasDedicatedV1Database, canIssueNewV1Cards } from "@/lib/v1-supabase";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { verifyActivationPin } from "@/lib/pin";
-import { officialV1DirectReviewUrl, resolveV1GooglePlaceId, suggestV1GooglePlace } from "@/lib/v1-google-maps";
+import { officialV1DirectReviewUrl, resolveV1GooglePlaceId, suggestV1GooglePlace, suggestV1ProductmatePlace } from "@/lib/v1-google-maps";
 
 export const dynamic = "force-dynamic";
 
@@ -247,6 +247,13 @@ if (directReviewUrl) {
       candidate = await suggestV1GooglePlace(googleMapsUrl, businessName);
     } catch (error) {
       console.error("V1_MAPS_RESOLVE_ERROR", error instanceof Error ? error.name : "unknown");
+    }
+    if (!candidate) {
+      try {
+        candidate = await suggestV1ProductmatePlace(googleMapsUrl);
+      } catch (error) {
+        console.error("V1_PRODUCTMATE_FALLBACK_ERROR", error instanceof Error ? error.name : "unknown");
+      }
     }
     if (!candidate) {
       return NextResponse.json({
