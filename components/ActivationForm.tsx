@@ -19,7 +19,6 @@ export default function ActivationForm() {
   const [businessName, setBusinessName] = useState("");
   const [reviewUrl, setReviewUrl] = useState("");
   const [candidate, setCandidate] = useState<{ placeId: string; name: string; address: string } | null>(null);
-  const [mapsFallback, setMapsFallback] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -71,21 +70,12 @@ export default function ActivationForm() {
           business_name: businessName.trim(),
           google_review_url: reviewUrl.trim(),
           confirmed_place_id: candidate?.placeId,
-          confirmed_maps_url: mapsFallback === reviewUrl.trim() ? mapsFallback : undefined,
         }),
       });
 
       const data = await res.json();
 
-      if (data.code === "CONFIRM_MAPS_LINK" && data.maps_url === reviewUrl.trim()) {
-        setCandidate(null);
-        setMapsFallback(data.maps_url);
-        setMessage(""); // Confirmation is an option, not an activation error.
-        return;
-      }
-
       if (data.code === "CONFIRM_GOOGLE_PLACE" && data.candidate) {
-        setMapsFallback(null);
         setCandidate(data.candidate);
         setMessage("Pastikan nama dan alamat di bawah benar. Klik Konfirmasi & Aktifkan untuk melanjutkan.");
         return;
@@ -126,7 +116,7 @@ export default function ActivationForm() {
         <input
           required
           value={cardCode}
-          onChange={(e) => { setCardCode(e.target.value.toUpperCase()); setCandidate(null); setMapsFallback(null); setMessage(""); }}
+          onChange={(e) => { setCardCode(e.target.value.toUpperCase()); setCandidate(null); setMessage(""); }}
           placeholder="Contoh: ULAS-00125"
           maxLength={24}
           autoComplete="off"
@@ -176,7 +166,7 @@ export default function ActivationForm() {
         <input
           required
           value={businessName}
-          onChange={(e) => { setBusinessName(e.target.value); setCandidate(null); setMapsFallback(null); setMessage(""); }}
+          onChange={(e) => { setBusinessName(e.target.value); setCandidate(null); setMessage(""); }}
           placeholder="Nama toko / bisnis"
           className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"
         />
@@ -195,15 +185,14 @@ export default function ActivationForm() {
           onChange={(e) => {
             setReviewUrl(e.target.value);
             setCandidate(null);
-            setMapsFallback(null);
             setMessage("");
           }}
-          placeholder="https://g.page/r/.../review atau https://maps.app.goo.gl/..."
+          placeholder="https://maps.app.goo.gl/..."
           className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"
         />
 
         <p className="mt-2 text-xs text-gray-500">
-          Untuk kartu Direct Google Review, tempel link permintaan ulasan resmi (contoh: https://g.page/r/.../review) dari Google Business Profile. Link Maps biasa hanya menuju halaman lokasi.
+          Tempel link berbagi bisnis dari Google Maps (maps.app.goo.gl) atau link ulasan resmi. Sistem V1 akan mencari lokasi dan menyiapkan tujuan Tulis Ulasan otomatis. Jika lokasinya ambigu, periksa pilihan bisnis yang ditampilkan.
         </p>
       </label>
 
@@ -212,19 +201,12 @@ export default function ActivationForm() {
           <p className="font-bold">Apakah ini bisnis Anda?</p>
           <p className="mt-2 font-semibold">{candidate.name}</p>
           <p className="mt-1">{candidate.address}</p>
-          <p className="mt-2 text-xs">Jika berbeda, jangan aktifkan. Ganti link Maps dengan lokasi yang benar.</p>
+          <p className="mt-2 text-xs">Jika nama dan alamat tidak sesuai, jangan aktifkan. Cari link Google Maps bisnis yang benar.</p>
           <button type="button" onClick={() => { setCandidate(null); setMessage(""); }}
             className="mt-3 underline">Bukan bisnis saya</button>
         </div>
       )}
 
-      {mapsFallback && <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="status">
-        <p className="font-bold">Konfirmasi tautan Google Maps</p>
-        <p className="mt-2">Place ID belum ditemukan. Jika Anda melanjutkan, kartu akan membuka halaman Google Maps bisnis, <strong>bukan langsung formulir Tulis Ulasan.</strong></p>
-        <a href={mapsFallback} target="_blank" rel="noopener noreferrer" className="mt-2 block break-all font-semibold underline">Buka dan periksa lokasi bisnis di Google Maps</a>
-        <p className="mt-2 text-xs">Periksa nama dan alamat lokasi di Google Maps. Jika ingin pelanggan langsung mengulas, ganti kolom link dengan tautan "Tulis Ulasan" resmi.</p>
-        <button type="button" className="mt-3 underline" onClick={() => { setMapsFallback(null); setMessage(""); }}>Batalkan pilihan Maps</button>
-      </div>}
 
       {/* MESSAGE */}
       {message && (
@@ -241,7 +223,7 @@ export default function ActivationForm() {
       >
         {loading
           ? "Memproses..."
-          : candidate ? "Konfirmasi & Aktifkan Kartu" : mapsFallback ? "Aktifkan ke Maps (Bukan Ulasan Langsung)" : "Aktifkan Kartu"}
+          : candidate ? "Konfirmasi & Aktifkan Kartu" : "Aktifkan Kartu"}
       </button>
     </form>
   );

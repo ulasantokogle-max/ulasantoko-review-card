@@ -23,6 +23,13 @@ function checks(configured: boolean, connected: boolean, imported: boolean): Che
         : "Koneksi database V1 belum tersedia atau belum terverifikasi.",
     },
     {
+      ok: Boolean(process.env.V1_GOOGLE_PLACES_API_KEY),
+      label: "Konversi Google Maps → Direct Google Review",
+      detail: process.env.V1_GOOGLE_PLACES_API_KEY
+        ? "API key V1 tersedia. Kesiapan layanan Google Places masih perlu diuji dengan link nyata."
+        : "V1_GOOGLE_PLACES_API_KEY belum dikonfigurasi. Link Maps tanpa Place ID tidak dapat dikonversi otomatis.",
+    },
+    {
       ok: imported,
       label: "Pemulihan dan audit kartu lama",
       detail: imported

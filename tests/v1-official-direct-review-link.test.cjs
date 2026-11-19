@@ -51,7 +51,7 @@ test("V1 redirect accepts only direct g.page review paths", () => {
 
 test("V2/V3/WiV1 routes are untouched and V1 form labels direct review", () => {
   const ui = read("components/ActivationForm.tsx");
-  assert.match(ui, /https:\/\/g.page\/r\/\.\.\.\/review/);
+  assert.match(ui, /maps.app.goo.gl/);
   const api = read("app/api/cards/activate/route.ts");
   assert.doesNotMatch(api, /v3Supabase|v2Supabase/);
 });
