@@ -12,6 +12,7 @@ type ActivateRequest = {
   business_name?: string;
   google_review_url?: string;
   confirmed_place_id?: string;
+  confirmed_maps_url?: string;
 };
 
 function normalizeCardCode(value: string) {
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
     const businessName = normalizeBusinessName(body.business_name ?? "");
     const googleMapsUrl = (body.google_review_url ?? "").trim();
     const confirmedPlaceId = (body.confirmed_place_id ?? "").trim();
+    const confirmedMapsUrl = (body.confirmed_maps_url ?? "").trim();
 
     if (!(await checkV1RateLimit(supabase, request, "activate", cardCode))) {
       return NextResponse.json({success:false,message:"Terlalu banyak percobaan atau keamanan sementara tidak tersedia."},{status:429,headers:{"Retry-After":"900"}});
@@ -220,13 +222,14 @@ export async function POST(request: NextRequest) {
  * ================================
  */
 
-let placeId: string;
+let googleReviewUrl: string;
 
 try {
-  placeId = await resolveV1GooglePlaceId(googleMapsUrl);
+  const placeId = await resolveV1GooglePlaceId(googleMapsUrl);
   if (confirmedPlaceId && confirmedPlaceId !== placeId) {
     return NextResponse.json({success:false,message:"Konfirmasi bisnis tidak cocok dengan link Google."},{status:422});
   }
+  googleReviewUrl = `https://search.google.com/local/writereview?placeid=${placeId}`;
 } catch (error) {
   try {
     const suggestion = await suggestV1GooglePlace(googleMapsUrl);
@@ -235,7 +238,7 @@ try {
         if (confirmedPlaceId !== suggestion.placeId) {
           return NextResponse.json({success:false,message:"Lokasi berubah. Periksa kembali bisnis Anda."},{status:422});
         }
-        placeId = suggestion.placeId;
+        googleReviewUrl = `https://search.google.com/local/writereview?placeid=${suggestion.placeId}`;
       } else {
         return NextResponse.json({
           success: false,
@@ -245,7 +248,27 @@ try {
         }, { status: 422 });
       }
     } else {
-      return NextResponse.json({success:false,message: error instanceof Error ? error.message : "Place ID belum dapat dipastikan."},{status:422});
+      // If Google does not expose a verifiable Place ID, never fabricate one.
+      // A Google Maps share link can be used ONLY after the customer explicitly
+      // accepts that it opens Maps rather than the direct review composer.
+      let shortLink: URL | null = null;
+      try { shortLink = new URL(googleMapsUrl); } catch { /* invalid input */ }
+      const safeMapsShortLink = shortLink?.protocol === "https:" &&
+        shortLink.hostname === "maps.app.goo.gl" &&
+        !shortLink.username && !shortLink.password && !shortLink.port &&
+        !shortLink.search && !shortLink.hash &&
+        /^\/[A-Za-z0-9_-]{10,}$/.test(shortLink.pathname);
+      if (!safeMapsShortLink) {
+        return NextResponse.json({success:false,message: error instanceof Error ? error.message : "Place ID belum dapat dipastikan."},{status:422});
+      }
+      if (confirmedMapsUrl !== googleMapsUrl) {
+        return NextResponse.json({
+          success:false, code:"CONFIRM_MAPS_LINK",
+          message:"Place ID tidak ditemukan. Anda dapat menghubungkan kartu ke halaman Google Maps bisnis, tetapi bukan langsung ke formulir Tulis Ulasan. Periksa link sebelum konfirmasi.",
+          maps_url: googleMapsUrl,
+        },{status:422});
+      }
+      googleReviewUrl = googleMapsUrl;
     }
   } catch (lookupError) {
     console.error("V1_PLACE_SUGGESTION_ERROR", lookupError);
@@ -259,8 +282,7 @@ try {
  * ================================
  */
 
-const googleReviewUrl =
-  `https://search.google.com/local/writereview?placeid=${placeId}`;
+// Destination was selected above: verified direct review link or explicit Maps fallback.
     
     /*
      * ================================
