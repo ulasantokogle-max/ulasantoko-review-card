@@ -1,0 +1,31 @@
+name: V1 Google Maps Direct Review Resolver
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "lib/v1-google-maps.ts"
+      - "app/api/cards/activate/route.ts"
+      - "components/ActivationForm.tsx"
+      - "app/api/v1/provider/status/route.ts"
+      - "tests/v1-google-maps-auto-resolver.test.cjs"
+      - "tests/v1-maps-short-fallback.test.cjs"
+      - "tests/v1-official-direct-review-link.test.cjs"
+      - ".github/workflows/v1-maps-auto-review.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  maps-review-v1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: node --test tests/v1-google-maps-auto-resolver.test.cjs tests/v1-maps-short-fallback.test.cjs tests/v1-official-direct-review-link.test.cjs tests/v1-review-redirect.test.cjs
+      - run: npx tsc --noEmit
