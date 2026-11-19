@@ -17,7 +17,7 @@ test("V1 activation never stores a non-review Maps share link for new cards", ()
 
 test("Google Maps resolver requires source URL title and marker coordinates", () => {
   const maps = read("lib/v1-google-maps.ts");
-  assert.match(maps, /titleFromMapsUrl\(url\)/);
+  assert.match(maps, /placeIdentityFromMapsUrl\(url\)/);
   assert.match(maps, /coordinatesFromMapsUrl\(url\)/);
   assert.match(maps, /V1_GOOGLE_PLACES_API_KEY/);
   assert.match(maps, /places:searchText/);

@@ -76,7 +76,7 @@ test("V1 needs API key for non-explicit Google Maps links", async () => {
   api.suggestV1GooglePlace;
   // Resolver's safety policy is exercised via source inspection for missing-key handling.
   assert.match(source, /if \(!apiKey\) return null;/);
-  assert.match(source, /titleFromMapsUrl\(url\)/);
+  assert.match(source, /placeIdentityFromMapsUrl\(url\)/);
   assert.match(source, /coordinatesFromMapsUrl\(url\)/);
 });
 
@@ -169,4 +169,35 @@ test("V1 CID fallback never searches untrusted redirected domains", async () => 
   assert.equal(await api.suggestV1GooglePlace(
     "https://maps.app.goo.gl/9QxANuCdbfTxQnr66", "MJH (Media Jump Start Hub) Digital Solution"),null);
   assert.equal(calledPlaces,false);
+});
+
+test("V1 parses the real MJH Maps name and appended address, auto-confirming only exact address", async () => {
+  let googleRequests = 0;
+  const expanded = "https://www.google.com/maps/place/MJH+(Media+Jump+Start+Hub)+Digital+Solution,+Gg.+H.Latif+1+No.192,+RT.002%2FRW.003,+Mustikajaya,+Mustika+Jaya,+Bekasi,+West+Java+17158/data=!4m2!3m1!1s0x2e6991c91bc634d3:0x9d0ddc34c1b76af9";
+  const api = loadResolver(async (url, init) => {
+    if (String(url).includes("maps.app.goo.gl"))
+      return {status:302,headers:{get:key=> key==="location" ? expanded : null}};
+    googleRequests++;
+    const body=JSON.parse(init.body);
+    assert.match(body.textQuery, /^MJH \(Media Jump Start Hub\) Digital Solution, Gg\. H\.Latif 1 No\.192/);
+    return {ok:true,json:async()=>({places:[
+      place("ChIJRealFormatTest12345","MJH (Media Jump Start Hub) Digital Solution",-6.31,107.02)
+    ].map(p=>({...p,formattedAddress:"Gg. H. Latif 1 No. 192, Mustikajaya, Bekasi, West Java 17158"}))})};
+  });
+  const result=await api.suggestV1GooglePlace("https://maps.app.goo.gl/9QxANuCdbfTxQnr66");
+  assert.equal(result.placeId,"ChIJRealFormatTest12345");
+  assert.equal(result.verified,true);
+  assert.equal(googleRequests,1);
+});
+
+test("V1 refuses automatic activation if Maps business address differs", async () => {
+  const expanded="https://www.google.com/maps/place/MJH+(Media+Jump+Start+Hub)+Digital+Solution,+Gg.+H.Latif+1+No.192,+Mustikajaya,+Bekasi+17158";
+  const api=loadResolver(async url=>String(url).includes("maps.app.goo.gl")
+    ? {status:302,headers:{get:()=>expanded}}
+    : {ok:true,json:async()=>({places:[{
+       ...place("ChIJIncorrectAddr12345","MJH (Media Jump Start Hub) Digital Solution",-6.31,107.02),
+       formattedAddress:"Jl. Lain No. 5, Bekasi, West Java 17158",
+    }]})});
+  const result=await api.suggestV1GooglePlace("https://maps.app.goo.gl/9QxANuCdbfTxQnr66");
+  assert.equal(result.verified,false);
 });
