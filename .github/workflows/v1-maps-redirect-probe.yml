@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - "scripts/v1-maps-link-probe.cjs"
+      - "scripts/v1-productmate-api-probe.cjs"
       - ".github/workflows/v1-maps-redirect-probe.yml"
 permissions:
   contents: read
@@ -17,3 +18,5 @@ jobs:
         with:
           node-version: 22
       - run: node scripts/v1-maps-link-probe.cjs
+
+      - run: node scripts/v1-productmate-api-probe.cjs
