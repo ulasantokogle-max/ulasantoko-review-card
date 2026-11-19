@@ -102,23 +102,46 @@ function coordinatesFromMapsUrl(url: URL): { lat: number; lng: number } | null {
     Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? {lat, lng} : null;
 }
 
-function titleFromMapsUrl(url: URL): string | null {
-  const pathname = url.pathname.match(/\/(?:maps\/)?place\/([^/]+)/);
-  let raw: string | null = pathname?.[1] ?? null;
+// Google Maps sometimes includes the street address after a comma in the
+// /maps/place/<business name>,+<street address>/ URL segment. Previously V1
+// treated the entire path as a business name and exact matching always failed.
+function placeIdentityFromMapsUrl(url: URL): { name: string; address: string | null } | null {
+  const matched = url.pathname.match(/\/(?:maps\/)?place\/([^/]+)/);
+  let raw: string | null = matched?.[1] ?? null;
   if (!raw) {
-    // Many share links redirect to search URLs instead of /maps/place.
-    // Query text must originate from the expanded Google URL, never from
-    // free-form customer input (which could point to another branch).
     raw = url.searchParams.get("query") || url.searchParams.get("q") ||
       url.searchParams.get("destination");
   }
   if (!raw) return null;
-  let title: string;
-  try { title = decodeURIComponent(raw).replace(/\+/g, " ").trim(); }
+  let decoded: string;
+  try { decoded = decodeURIComponent(raw).replace(/\+/g, " ").trim(); }
   catch { return null; }
-  if (!title || title.length < 3 || title.length > 180 ||
-      /^[-\d.,\s]+$/.test(title) || /^https?:\/\//i.test(title)) return null;
-  return title;
+  if (!decoded || decoded.length < 3 || decoded.length > 400 ||
+      /^[-\d.,\s]+$/.test(decoded) || /^https?:\/\//i.test(decoded)) return null;
+
+  // Only /place paths can carry an address suffix. Query URLs may legitimately
+  // contain commas within an official business name; do not split those.
+  const comma = matched ? decoded.indexOf(",") : -1;
+  const name = (comma >= 0 ? decoded.slice(0, comma) : decoded).trim();
+  const address = comma >= 0 ? decoded.slice(comma + 1).trim() : null;
+  if (name.length < 3 || name.length > 180) return null;
+  return { name, address: address && address.length >= 6 ? address : null };
+}
+
+function titleFromMapsUrl(url: URL): string | null {
+  return placeIdentityFromMapsUrl(url)?.name ?? null;
+}
+
+function addressMatchesMapsPath(sourceAddress: string, resolvedAddress: string): boolean {
+  const postcode = sourceAddress.match(/\b\d{5}\b/)?.[0];
+  const house = sourceAddress.match(/\b(?:no\.?|nomor)\s*(\d{1,5})\b/i)?.[1];
+  if (!postcode || !house) return false;
+  const normalizedResolved = resolvedAddress.normalize("NFKC").toLocaleLowerCase("id-ID");
+  const resolvedPostcode = normalizedResolved.match(/\b\d{5}\b/)?.[0];
+  const resolvedHouse = normalizedResolved.match(/\b(?:no\.?|nomor)\s*(\d{1,5})\b/i)?.[1];
+  // Exact business name + matching house number and postal code, and only
+  // one candidate. Without this evidence, require human confirmation.
+  return postcode === resolvedPostcode && house === resolvedHouse;
 }
 
 async function expandV1GoogleMapsUrl(value: string): Promise<URL | null> {
@@ -159,7 +182,8 @@ export async function suggestV1GooglePlace(value: string, fallbackBusinessName =
   if (!apiKey) return null;
   const url = await expandV1GoogleMapsUrl(value);
   if (!url) return null;
-  const title = titleFromMapsUrl(url);
+  const identity = placeIdentityFromMapsUrl(url);
+  const title = identity?.name || null;
   const marker = coordinatesFromMapsUrl(url);
   // A legitimate Google Maps share may resolve to /maps?cid=... without
   // a readable name or coordinates. Only in that case use the customer-supplied
@@ -180,7 +204,7 @@ export async function suggestV1GooglePlace(value: string, fallbackBusinessName =
       "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location",
     },
     body: JSON.stringify({
-      textQuery: queryTitle,
+      textQuery: identity?.address ? queryTitle + ", " + identity.address : queryTitle,
       maxResultCount: 10,
       languageCode: "id",
       ...(marker ? { locationBias: {
@@ -215,6 +239,11 @@ export async function suggestV1GooglePlace(value: string, fallbackBusinessName =
   // Auto-resolve only on exact business-name match, close coordinates and no
   // competing nearby match. Google Maps URL must identify a specific place.
   const best = exact[0];
+  if (!requiresOwnerConfirmation && !marker && identity?.address &&
+      exact.length === 1 && best &&
+      addressMatchesMapsPath(identity.address, best.address)) {
+    return { placeId: best.id, name: best.name, address: best.address, verified: true };
+  }
   if (!requiresOwnerConfirmation && marker && best && best.distance !== null && best.distance <= 40 &&
       exact.filter(p => p.distance !== null && p.distance <= 80).length === 1 &&
       candidates.filter(p => p.distance !== null && p.distance <= 40).length === 1) {
