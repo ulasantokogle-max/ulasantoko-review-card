@@ -317,10 +317,10 @@ export async function suggestV1ProductmatePlace(value: string): Promise<V1Google
           typeof result.formattedAddress !== "string") return null;
       if (normalizePlaceTitle(result.displayName.text) !== normalizePlaceTitle(identity.name)) return null;
       if (identity.address) {
-        const postA = identity.address.match(/\\b\\d{5}\\b/)?.[0];
-        const postB = result.formattedAddress.match(/\\b\\d{5}\\b/)?.[0];
-        const numberA = identity.address.match(/\\b(?:no\\.?|nomor)\\s*(\\d{1,5})\\b/i)?.[1];
-        const numberB = result.formattedAddress.match(/\\b(?:no\\.?|nomor)\\s*(\\d{1,5})\\b/i)?.[1];
+        const postA = identity.address.match(/\b\d{5}\b/)?.[0];
+        const postB = result.formattedAddress.match(/\b\d{5}\b/)?.[0];
+        const numberA = identity.address.match(/\b(?:no\.?|nomor)\s*(\d{1,5})\b/i)?.[1];
+        const numberB = result.formattedAddress.match(/\b(?:no\.?|nomor)\s*(\d{1,5})\b/i)?.[1];
         if ((postA && postB && postA !== postB) ||
             (numberA && numberB && numberA !== numberB)) return null;
       }
@@ -334,7 +334,7 @@ export async function suggestV1ProductmatePlace(value: string): Promise<V1Google
   // from Productmate or user-supplied text. Candidate remains unverified.
   // Reject plain search URLs without a concrete Google Maps location address.
   if (!identity.address || identity.address.length < 12 ||
-      !/\\b\\d{5}\\b/.test(identity.address)) return null;
+      !/\b\d{5}\b/.test(identity.address)) return null;
   return { placeId:id,name:identity.name,address:identity.address,verified:false };
 
 }
