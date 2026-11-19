@@ -10,7 +10,7 @@ test("V1 activation never stores a non-review Maps share link for new cards", ()
   assert.doesNotMatch(api, /CONFIRM_MAPS_LINK/);
   assert.match(api, /MAPS_UNRESOLVED/);
   assert.match(api, /verifiedBusinessName \|\| businessName/);
-  assert.match(api, /suggestV1GooglePlace\(googleMapsUrl\)/);
+  assert.match(api, /suggestV1GooglePlace\(googleMapsUrl, businessName\)/);
   assert.match(api, /verifyActivationPin/);
   assert.match(api, /\.eq\("status", "inactive"\)/);
 });
@@ -21,7 +21,7 @@ test("Google Maps resolver requires source URL title and marker coordinates", ()
   assert.match(maps, /coordinatesFromMapsUrl\(url\)/);
   assert.match(maps, /V1_GOOGLE_PLACES_API_KEY/);
   assert.match(maps, /places:searchText/);
-  assert.match(maps, /normalizePlaceTitle\(p.name\) === normalizePlaceTitle\(title\)/);
+  assert.match(maps, /normalizePlaceTitle\(p.name\) === normalizePlaceTitle\(queryTitle\)/);
   assert.match(maps, /best.distance <= 40/);
   assert.match(maps, /verified: true/);
   assert.match(maps, /verified: false/);
