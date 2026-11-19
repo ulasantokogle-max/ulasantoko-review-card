@@ -223,70 +223,53 @@ export async function POST(request: NextRequest) {
  */
 
 let googleReviewUrl: string;
-
-// Only exact, clean Google Maps short links may be used as a confirmed
-// non-direct fallback. This must match V1 public redirect's allowlist.
-function isSafeMapsShortLink(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" && url.hostname === "maps.app.goo.gl" &&
-      !url.username && !url.password && !url.port && !url.search && !url.hash &&
-      /^\/[A-Za-z0-9_-]{10,}$/.test(url.pathname);
-  } catch {
-    return false;
-  }
-}
-
+let verifiedBusinessName: string | null = null;
 const directReviewUrl = officialV1DirectReviewUrl(googleMapsUrl);
-if (directReviewUrl) {
-  // The owner supplied a Google review composer URL directly: no Place ID extraction needed.
-  googleReviewUrl = directReviewUrl;
-} else try {
-  const placeId = await resolveV1GooglePlaceId(googleMapsUrl);
-  if (confirmedPlaceId && confirmedPlaceId !== placeId) {
-    return NextResponse.json({success:false,message:"Konfirmasi bisnis tidak cocok dengan link Google."},{status:422});
-  }
-  googleReviewUrl = `https://search.google.com/local/writereview?placeid=${placeId}`;
-} catch (resolveError) {
-  // Google Places lookup may be disabled, rate-limited or temporarily offline.
-  // It must not stop a customer from opting into an exact Google Maps link.
-  let suggestion: Awaited<ReturnType<typeof suggestV1GooglePlace>> = null;
-  try {
-    suggestion = await suggestV1GooglePlace(googleMapsUrl);
-  } catch (lookupError) {
-    console.error("V1_PLACE_SUGGESTION_ERROR", lookupError);
-  }
 
-  if (suggestion) {
-    if (confirmedPlaceId && confirmedPlaceId !== suggestion.placeId) {
-      return NextResponse.json({success:false,message:"Lokasi berubah. Periksa kembali bisnis Anda."},{status:422});
+if (directReviewUrl) {
+  googleReviewUrl = directReviewUrl;
+} else {
+  let placeId: string | null = null;
+  try {
+    placeId = await resolveV1GooglePlaceId(googleMapsUrl);
+  } catch {
+    // Some Google Maps short links contain coordinates and business names but
+    // not a literal Place ID. Resolve them via the V1-only Places API key.
+  }
+  if (placeId) {
+    if (confirmedPlaceId && confirmedPlaceId !== placeId) {
+      return NextResponse.json({success:false,message:"Lokasi Google tidak cocok. Periksa tautan bisnis Anda."},{status:422});
     }
-    if (!confirmedPlaceId) {
-      return NextResponse.json({
-        success:false, code:"CONFIRM_GOOGLE_PLACE",
-        message:"Periksa nama dan alamat bisnis sebelum aktivasi.",
-        candidate:suggestion,
-      }, {status:422});
-    }
-    googleReviewUrl = `https://search.google.com/local/writereview?placeid=${suggestion.placeId}`;
-  } else if (isSafeMapsShortLink(googleMapsUrl)) {
-    if (confirmedPlaceId) {
-      return NextResponse.json({success:false,message:"Lokasi tidak dapat diverifikasi. Ulangi pemeriksaan Google Maps."},{status:422});
-    }
-    if (confirmedMapsUrl !== googleMapsUrl) {
-      return NextResponse.json({
-        success:false, code:"CONFIRM_MAPS_LINK",
-        message:"Place ID belum ditemukan. Periksa tautan Google Maps sebelum melanjutkan.",
-        maps_url:googleMapsUrl,
-      }, {status:422});
-    }
-    // Distinct, explicitly acknowledged mode: opens Maps, not a review form.
-    googleReviewUrl = googleMapsUrl;
+    googleReviewUrl = `https://search.google.com/local/writereview?placeid=${placeId}`;
   } else {
-    return NextResponse.json({
-      success:false,
-      message:resolveError instanceof Error ? resolveError.message : "Place ID belum dapat dipastikan. Gunakan link Tulis Ulasan resmi.",
-    }, {status:422});
+    let candidate: Awaited<ReturnType<typeof suggestV1GooglePlace>> = null;
+    try {
+      candidate = await suggestV1GooglePlace(googleMapsUrl);
+    } catch (error) {
+      console.error("V1_MAPS_RESOLVE_ERROR", error instanceof Error ? error.name : "unknown");
+    }
+    if (!candidate) {
+      return NextResponse.json({
+        success: false,
+        code: "MAPS_UNRESOLVED",
+        message: process.env.V1_GOOGLE_PLACES_API_KEY
+          ? "Lokasi Google Maps belum dapat dipastikan. Pastikan link menunjuk satu profil bisnis, lalu coba lagi atau hubungi Provider."
+          : "Konversi link Google Maps ke ulasan langsung belum tersedia pada server V1. Hubungi Provider untuk mengaktifkan integrasi Google Places.",
+      }, {status:422,headers:{"Cache-Control":"no-store"}});
+    }
+    if (confirmedPlaceId && confirmedPlaceId !== candidate.placeId) {
+      return NextResponse.json({success:false,message:"Pilihan lokasi tidak sesuai. Periksa kembali link Maps."},{status:422});
+    }
+    if (!candidate.verified && !confirmedPlaceId) {
+      return NextResponse.json({
+        success:false,
+        code:"CONFIRM_GOOGLE_PLACE",
+        message:"Sistem menemukan kemungkinan bisnis. Periksa nama dan alamatnya sebelum aktivasi.",
+        candidate,
+      }, {status:422,headers:{"Cache-Control":"no-store"}});
+    }
+    googleReviewUrl = `https://search.google.com/local/writereview?placeid=${candidate.placeId}`;
+    verifiedBusinessName = candidate.name;
   }
 }
 
@@ -312,7 +295,7 @@ if (directReviewUrl) {
     const { data: activatedCard, error: updateError } = await supabase
       .from("cards")
       .update({
-        business_name: businessName,
+        business_name: verifiedBusinessName || businessName,
         google_review_url: googleReviewUrl,
         status: "active",
         activated_at: activatedAt,
