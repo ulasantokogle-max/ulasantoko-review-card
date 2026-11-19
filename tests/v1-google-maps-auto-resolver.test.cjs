@@ -76,7 +76,7 @@ test("V1 needs API key for non-explicit Google Maps links", async () => {
   api.suggestV1GooglePlace;
   // Resolver's safety policy is exercised via source inspection for missing-key handling.
   assert.match(source, /if \(!apiKey\) return null;/);
-  assert.match(source, /titleFromMapsUrl\(url\)/);
+  assert.match(source, /placeIdentityFromMapsUrl\(url\)/);
   assert.match(source, /coordinatesFromMapsUrl\(url\)/);
 });
 
