@@ -19,6 +19,7 @@ export default function ActivationForm() {
   const [businessName, setBusinessName] = useState("");
   const [reviewUrl, setReviewUrl] = useState("");
   const [candidate, setCandidate] = useState<{ placeId: string; name: string; address: string } | null>(null);
+  const [candidateConfirmed, setCandidateConfirmed] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -26,6 +27,10 @@ export default function ActivationForm() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
 
+    if (candidate && !candidateConfirmed) {
+      setMessage("Buka tautan ulasan, cocokkan profil Google, lalu centang konfirmasi sebelum mengaktifkan kartu.");
+      return;
+    }
     setLoading(true);
     setMessage("");
 
@@ -77,6 +82,7 @@ export default function ActivationForm() {
 
       if (data.code === "CONFIRM_GOOGLE_PLACE" && data.candidate) {
         setCandidate(data.candidate);
+        setCandidateConfirmed(false);
         setMessage("Pastikan nama dan alamat di bawah benar. Klik Konfirmasi & Aktifkan untuk melanjutkan.");
         return;
       }
@@ -116,7 +122,7 @@ export default function ActivationForm() {
         <input
           required
           value={cardCode}
-          onChange={(e) => { setCardCode(e.target.value.toUpperCase()); setCandidate(null); setMessage(""); }}
+          onChange={(e) => { setCardCode(e.target.value.toUpperCase()); setCandidate(null); setCandidateConfirmed(false); setMessage(""); }}
           placeholder="Contoh: ULAS-00125"
           maxLength={24}
           autoComplete="off"
@@ -166,7 +172,7 @@ export default function ActivationForm() {
         <input
           required
           value={businessName}
-          onChange={(e) => { setBusinessName(e.target.value); setCandidate(null); setMessage(""); }}
+          onChange={(e) => { setBusinessName(e.target.value); setCandidate(null); setCandidateConfirmed(false); setMessage(""); }}
           placeholder="Nama toko / bisnis"
           className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"
         />
@@ -185,6 +191,7 @@ export default function ActivationForm() {
           onChange={(e) => {
             setReviewUrl(e.target.value);
             setCandidate(null);
+            setCandidateConfirmed(false);
             setMessage("");
           }}
           placeholder="https://maps.app.goo.gl/..."
@@ -201,8 +208,17 @@ export default function ActivationForm() {
           <p className="font-bold">Apakah ini bisnis Anda?</p>
           <p className="mt-2 font-semibold">{candidate.name}</p>
           <p className="mt-1">{candidate.address}</p>
+          <p className="mt-2 text-xs font-semibold text-amber-800">Kandidat belum tentu diverifikasi Google. Buka formulir ulasan berikut dan pastikan profil Google benar.</p>
+          <a href={"https://search.google.com/local/writereview?placeid=" + encodeURIComponent(candidate.placeId)}
+            target="_blank" rel="noopener noreferrer" className="mt-3 block break-all font-semibold text-blue-700 underline">
+            Pratinjau formulir Google Review
+          </a>
+          <label className="mt-4 flex items-start gap-2 rounded-xl border border-blue-200 bg-white p-3">
+            <input type="checkbox" checked={candidateConfirmed} onChange={e => setCandidateConfirmed(e.target.checked)} className="mt-1" />
+            <span>Saya sudah membuka link Google Review dan memastikan nama serta alamat bisnis yang ditampilkan benar.</span>
+          </label>
           <p className="mt-2 text-xs">Jika nama dan alamat tidak sesuai, jangan aktifkan. Cari link Google Maps bisnis yang benar.</p>
-          <button type="button" onClick={() => { setCandidate(null); setMessage(""); }}
+          <button type="button" onClick={() => { setCandidate(null); setCandidateConfirmed(false); setMessage(""); }}
             className="mt-3 underline">Bukan bisnis saya</button>
         </div>
       )}
@@ -218,7 +234,7 @@ export default function ActivationForm() {
       {/* BUTTON */}
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || Boolean(candidate && !candidateConfirmed)}
         className="w-full rounded-2xl bg-black px-5 py-4 font-semibold text-white disabled:opacity-50"
       >
         {loading
