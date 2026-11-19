@@ -10,7 +10,7 @@ test("V1 activation never stores a non-review Maps share link for new cards", ()
   assert.doesNotMatch(api, /CONFIRM_MAPS_LINK/);
   assert.match(api, /MAPS_UNRESOLVED/);
   assert.match(api, /verifiedBusinessName \|\| businessName/);
-  assert.match(api, /suggestV1GooglePlace\(googleMapsUrl, businessName\)/);
+  assert.match(api, /resolveV1GoogleReviewCandidate\(googleMapsUrl, businessName\)/);
   assert.match(api, /verifyActivationPin/);
   assert.match(api, /\.eq\("status", "inactive"\)/);
 });
