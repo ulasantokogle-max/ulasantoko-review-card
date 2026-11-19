@@ -154,14 +154,23 @@ function metersBetween(lat1: number, lng1: number, lat2: number, lng2: number) {
   return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
 }
 
-export async function suggestV1GooglePlace(value: string): Promise<V1GooglePlaceCandidate | null> {
+export async function suggestV1GooglePlace(value: string, fallbackBusinessName = ""): Promise<V1GooglePlaceCandidate | null> {
   const apiKey = process.env.V1_GOOGLE_PLACES_API_KEY;
   if (!apiKey) return null;
   const url = await expandV1GoogleMapsUrl(value);
   if (!url) return null;
   const title = titleFromMapsUrl(url);
   const marker = coordinatesFromMapsUrl(url);
-  if (!title) return null;
+  // A legitimate Google Maps share may resolve to /maps?cid=... without
+  // a readable name or coordinates. Only in that case use the customer-supplied
+  // business name to search Google Places, and NEVER auto-confirm that result.
+  // An invalid/unsafe redirect still fails in expandV1GoogleMapsUrl.
+  const nameFallback = !title && typeof fallbackBusinessName === "string" &&
+    fallbackBusinessName.trim().length >= 4 && fallbackBusinessName.trim().length <= 180
+    ? fallbackBusinessName.trim() : null;
+  const queryTitle = title || nameFallback;
+  if (!queryTitle) return null;
+  const requiresOwnerConfirmation = !title;
 
   const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
@@ -171,7 +180,7 @@ export async function suggestV1GooglePlace(value: string): Promise<V1GooglePlace
       "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location",
     },
     body: JSON.stringify({
-      textQuery: title,
+      textQuery: queryTitle,
       maxResultCount: 10,
       languageCode: "id",
       ...(marker ? { locationBias: {
@@ -202,11 +211,11 @@ export async function suggestV1GooglePlace(value: string): Promise<V1GooglePlace
     .filter(p => p.distance === null || p.distance <= 150)
     .sort((a, b) => (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY));
 
-  const exact = candidates.filter(p => normalizePlaceTitle(p.name) === normalizePlaceTitle(title));
+  const exact = candidates.filter(p => normalizePlaceTitle(p.name) === normalizePlaceTitle(queryTitle));
   // Auto-resolve only on exact business-name match, close coordinates and no
   // competing nearby match. Google Maps URL must identify a specific place.
   const best = exact[0];
-  if (marker && best && best.distance !== null && best.distance <= 40 &&
+  if (!requiresOwnerConfirmation && marker && best && best.distance !== null && best.distance <= 40 &&
       exact.filter(p => p.distance !== null && p.distance <= 80).length === 1 &&
       candidates.filter(p => p.distance !== null && p.distance <= 40).length === 1) {
     return { placeId: best.id, name: best.name, address: best.address, verified: true };
@@ -214,9 +223,9 @@ export async function suggestV1GooglePlace(value: string): Promise<V1GooglePlace
 
   // Without coordinates, never auto-approve. A unique exact-title Places
   // match may be shown to the customer for explicit name/address confirmation.
-  const possible = marker
-    ? candidates.filter(p => p.distance !== null && p.distance <= 100)
-    : exact;
+  const possible = requiresOwnerConfirmation
+    ? exact
+    : marker ? candidates.filter(p => p.distance !== null && p.distance <= 100) : exact;
   if (possible.length !== 1) return null;
   const candidate = possible[0];
   return { placeId: candidate.id, name: candidate.name, address: candidate.address, verified: false };
