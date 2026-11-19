@@ -1,0 +1,20 @@
+name: V1 Provider Maps Check Safety
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/api/v1/provider/maps-check/**"
+      - "app/admin/provider/diagnostics/**"
+      - "tests/v1-provider-maps-check.test.cjs"
+      - ".github/workflows/v1-provider-maps-check.yml"
+permissions:
+  contents: read
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test tests/v1-provider-maps-check.test.cjs

@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 
 type Check = { ok: boolean; label: string; detail: string };
+type MapsResult = {
+  status: "direct" | "resolved" | "confirm" | "unresolved";
+  message: string;
+  review_url?: string;
+  candidate?: { name: string; address: string; verified: boolean };
+};
 type Readiness = {
   mode: string;
   ready: boolean;
@@ -15,6 +21,12 @@ export default function V1ProviderDiagnostics() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [status, setStatus] = useState<Readiness | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mapsUrl, setMapsUrl] = useState("https://maps.app.goo.gl/9QxANuCdbfTxQnr66");
+  const [mapsBusinessName, setMapsBusinessName] = useState("MJH (Media Jump Start Hub) Digital Solution");
+  const [mapsBusy, setMapsBusy] = useState(false);
+  const [mapsResult, setMapsResult] = useState<MapsResult | null>(null);
+  const [mapsError, setMapsError] = useState("");
+
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -33,6 +45,28 @@ export default function V1ProviderDiagnostics() {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  async function checkMaps(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setMapsBusy(true);
+    setMapsResult(null);
+    setMapsError("");
+    try {
+      const response = await fetch("/api/v1/provider/maps-check", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        cache:"no-store",
+        body:JSON.stringify({maps_url:mapsUrl.trim(),business_name:mapsBusinessName.trim()}),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Pemeriksaan gagal.");
+      setMapsResult(data as MapsResult);
+    } catch(error) {
+      setMapsError(error instanceof Error ? error.message : "Pemeriksaan gagal.");
+    } finally {
+      setMapsBusy(false);
+    }
+  }
+
 
   return <main className="min-h-screen bg-gray-50 px-4 py-10">
     <section className="mx-auto max-w-2xl rounded-3xl border border-gray-200 bg-white p-7 shadow-sm">
@@ -62,6 +96,33 @@ export default function V1ProviderDiagnostics() {
               <p className="mt-1 text-sm text-gray-600">{c.detail}</p>
             </div>)}
         </div>
+        <section className="mt-7 rounded-2xl border border-blue-200 bg-blue-50/40 p-5">
+          <h2 className="font-bold text-gray-900">Uji link Google Maps → Review V1</h2>
+          <p className="mt-2 text-sm text-gray-600">Pemeriksaan langsung Google Places tanpa aktivasi kartu, tanpa PIN dan tanpa perubahan database kartu. Gunakan sebelum melakukan aktivasi.</p>
+          <form onSubmit={checkMaps} className="mt-4 space-y-3">
+            <label className="block text-sm font-semibold">Nama bisnis
+              <input value={mapsBusinessName} required onChange={e => {setMapsBusinessName(e.target.value);setMapsResult(null);}} maxLength={180} className="mt-2 w-full rounded-xl border border-gray-300 bg-white p-3 font-normal" />
+            </label>
+            <label className="block text-sm font-semibold">Link berbagi Google Maps
+              <input type="url" required value={mapsUrl} onChange={e => {setMapsUrl(e.target.value);setMapsResult(null);}} className="mt-2 w-full rounded-xl border border-gray-300 bg-white p-3 font-normal" />
+            </label>
+            <button disabled={mapsBusy} className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white disabled:opacity-50">{mapsBusy ? "Memeriksa Google Places..." : "Periksa Tanpa Aktivasi"}</button>
+          </form>
+          {mapsError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{mapsError}</p>}
+          {mapsResult && <div role="status" className="mt-4 space-y-2 rounded-xl border border-gray-200 bg-white p-4 text-sm">
+            <p className="font-bold">{mapsResult.status === "unresolved" ? "Belum ditemukan" : mapsResult.status === "confirm" ? "Butuh konfirmasi" : "Tautan ulasan ditemukan"}</p>
+            <p>{mapsResult.message}</p>
+            {mapsResult.candidate && <div className="rounded-lg bg-gray-50 p-3">
+              <p className="font-semibold">{mapsResult.candidate.name}</p>
+              <p>{mapsResult.candidate.address}</p>
+            </div>}
+            {mapsResult.review_url && <div className="space-y-1">
+              <p className="font-semibold">URL Tulis Ulasan (pratinjau)</p>
+              <a href={mapsResult.review_url} target="_blank" rel="noopener noreferrer" className="block break-all text-blue-700 underline">{mapsResult.review_url}</a>
+              <p className="text-xs text-gray-500">Pastikan Google menampilkan bisnis yang sesuai. Pemeriksaan ini belum mengaktifkan kartu apa pun.</p>
+            </div>}
+          </div>}
+        </section>
         {!status.ready && <section className="mt-6">
           <h2 className="font-semibold">Langkah penyelesaian</h2>
           <ol className="mt-3 list-decimal space-y-3 pl-6 text-sm text-gray-700">
