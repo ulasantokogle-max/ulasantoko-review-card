@@ -15,6 +15,7 @@ export default function ActivationForm() {
     }
   }, []);
   const [activationPin, setActivationPin] = useState("");
+  const [showPin, setShowPin] = useState(false);
   const [businessName, setBusinessName] = useState("");
   const [reviewUrl, setReviewUrl] = useState("");
   const [candidate, setCandidate] = useState<{ placeId: string; name: string; address: string } | null>(null);
@@ -141,7 +142,7 @@ export default function ActivationForm() {
 
         <input
           required
-          type="password"
+          type={showPin ? "text" : "password"}
           inputMode="numeric"
           pattern="[0-9]{6}"
           value={activationPin}
@@ -154,12 +155,15 @@ export default function ActivationForm() {
           }
           placeholder="Masukkan 6 digit PIN"
           maxLength={6}
-          autoComplete="one-time-code"
+          autoComplete="off"
           className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none tracking-[0.35em]"
         />
 
+        <button type="button" onClick={() => setShowPin(!showPin)} className="mt-2 text-sm font-semibold text-blue-700 underline">
+          {showPin ? "Sembunyikan PIN" : "Lihat PIN sementara"}
+        </button>
         <p className="mt-2 text-xs text-gray-500">
-          PIN aktivasi terdapat pada kartu fisik Anda.
+          Cocokkan seluruh 6 digit PIN dengan PIN untuk kode kartu ini. Jangan bagikan PIN melalui chat. Jika berbeda, hubungi Provider untuk menerbitkan PIN pengganti.
         </p>
       </label>
 
