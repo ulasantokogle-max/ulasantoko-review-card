@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { v1SupabaseServer, hasDedicatedV1Database, canIssueNewV1Cards } from "@/lib/v1-supabase";
 import { checkV1RateLimit } from "@/lib/v1-rate-limit";
 import { verifyActivationPin } from "@/lib/pin";
-import { officialV1DirectReviewUrl, resolveV1GooglePlaceId, suggestV1GooglePlace, suggestV1ProductmatePlace } from "@/lib/v1-google-maps";
+import { officialV1DirectReviewUrl, resolveV1GooglePlaceId, resolveV1GoogleReviewCandidate } from "@/lib/v1-google-maps";
 
 export const dynamic = "force-dynamic";
 
@@ -242,18 +242,13 @@ if (directReviewUrl) {
     }
     googleReviewUrl = `https://search.google.com/local/writereview?placeid=${placeId}`;
   } else {
-    let candidate: Awaited<ReturnType<typeof suggestV1GooglePlace>> = null;
-    try {
-      candidate = await suggestV1GooglePlace(googleMapsUrl, businessName);
-    } catch (error) {
-      console.error("V1_MAPS_RESOLVE_ERROR", error instanceof Error ? error.name : "unknown");
-    }
-    if (!candidate) {
-      try {
-        candidate = await suggestV1ProductmatePlace(googleMapsUrl);
-      } catch (error) {
-        console.error("V1_PRODUCTMATE_FALLBACK_ERROR", error instanceof Error ? error.name : "unknown");
-      }
+    const resolution = await resolveV1GoogleReviewCandidate(googleMapsUrl, businessName);
+    const candidate = resolution.candidate;
+    if (resolution.reason === "provider_conflict") {
+      return NextResponse.json({
+        success:false,code:"MAPS_PROVIDER_CONFLICT",
+        message:"Layanan Google dan pencarian tambahan memberikan identitas bisnis berbeda. Aktivasi ditahan agar ulasan tidak salah tujuan.",
+      },{status:422,headers:{"Cache-Control":"no-store"}});
     }
     if (!candidate) {
       return NextResponse.json({

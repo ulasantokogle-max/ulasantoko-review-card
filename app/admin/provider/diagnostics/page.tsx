@@ -5,6 +5,10 @@ import { useCallback, useEffect, useState } from "react";
 type Check = { ok: boolean; label: string; detail: string };
 type MapsResult = {
   status: "direct" | "resolved" | "confirm" | "unresolved";
+  source?: "google" | "productmate" | "none";
+  reason?: string;
+  google_check?: "found" | "unresolved" | "error";
+  fallback_check?: "found" | "unresolved" | "error";
   message: string;
   review_url?: string;
   candidate?: { name: string; address: string; verified: boolean };
@@ -112,6 +116,12 @@ export default function V1ProviderDiagnostics() {
           {mapsResult && <div role="status" className="mt-4 space-y-2 rounded-xl border border-gray-200 bg-white p-4 text-sm">
             <p className="font-bold">{mapsResult.status === "unresolved" ? "Belum ditemukan" : mapsResult.status === "confirm" ? "Butuh konfirmasi" : "Tautan ulasan ditemukan"}</p>
             <p>{mapsResult.message}</p>
+            {(mapsResult.google_check || mapsResult.fallback_check) && <div className="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700">
+              <p>Google Places: <strong>{mapsResult.google_check || "tidak diuji"}</strong></p>
+              <p>Productmate + Google Details: <strong>{mapsResult.fallback_check || "tidak diuji"}</strong></p>
+              {mapsResult.source && mapsResult.source !== "none" && <p>Sumber kandidat: <strong>{mapsResult.source}</strong></p>}
+              {mapsResult.reason === "provider_conflict" && <p className="mt-2 font-bold text-red-700">Hasil layanan tidak cocok. Jangan aktifkan kartu; hubungi Provider untuk verifikasi.</p>}
+            </div>}
             {mapsResult.candidate && <div className="rounded-lg bg-gray-50 p-3">
               <p className="font-semibold">{mapsResult.candidate.name}</p>
               <p>{mapsResult.candidate.address}</p>

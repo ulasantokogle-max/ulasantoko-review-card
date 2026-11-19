@@ -11,6 +11,7 @@ on:
       - "app/api/v1/provider/status/route.ts"
       - "tests/v1-google-maps-auto-resolver.test.cjs"
       - "tests/v1-productmate-review-fallback.test.cjs"
+      - "tests/v1-parallel-review-resolution.test.cjs"
       - "tests/v1-maps-short-fallback.test.cjs"
       - "tests/v1-official-direct-review-link.test.cjs"
       - ".github/workflows/v1-maps-auto-review.yml"
@@ -29,5 +30,5 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - run: node --test tests/v1-google-maps-auto-resolver.test.cjs tests/v1-maps-short-fallback.test.cjs tests/v1-official-direct-review-link.test.cjs tests/v1-review-redirect.test.cjs tests/v1-productmate-review-fallback.test.cjs
+      - run: node --test tests/v1-google-maps-auto-resolver.test.cjs tests/v1-maps-short-fallback.test.cjs tests/v1-official-direct-review-link.test.cjs tests/v1-review-redirect.test.cjs tests/v1-productmate-review-fallback.test.cjs tests/v1-parallel-review-resolution.test.cjs
       - run: npx tsc --noEmit
