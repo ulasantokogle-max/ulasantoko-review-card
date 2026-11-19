@@ -88,26 +88,36 @@ export type V1GooglePlaceCandidate = {
 };
 
 function coordinatesFromMapsUrl(url: URL): { lat: number; lng: number } | null {
-  const decoded = decodeURIComponent(url.toString());
-  const marker = decoded.match(/!3d(-?\d{1,2}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)/);
-  const at = decoded.match(/@(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)/);
-  const found = marker || at;
+  let decoded: string;
+  try { decoded = decodeURIComponent(url.toString()); } catch { return null; }
+  const pairs = [
+    /!3d(-?\d{1,2}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)/,
+    /@(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)/,
+    /(?:[?&](?:ll|center|sll)=)(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)/,
+  ];
+  const found = pairs.map(re => decoded.match(re)).find(Boolean);
   if (!found) return null;
-  const lat = Number(found[1]);
-  const lng = Number(found[2]);
+  const lat = Number(found[1]), lng = Number(found[2]);
   return Number.isFinite(lat) && Number.isFinite(lng) &&
     Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? {lat, lng} : null;
 }
 
 function titleFromMapsUrl(url: URL): string | null {
-  const matched = url.pathname.match(/\/(?:maps\/)?place\/([^/]+)/);
-  if (!matched) return null;
+  const pathname = url.pathname.match(/\/(?:maps\/)?place\/([^/]+)/);
+  let raw: string | null = pathname?.[1] ?? null;
+  if (!raw) {
+    // Many share links redirect to search URLs instead of /maps/place.
+    // Query text must originate from the expanded Google URL, never from
+    // free-form customer input (which could point to another branch).
+    raw = url.searchParams.get("query") || url.searchParams.get("q") ||
+      url.searchParams.get("destination");
+  }
+  if (!raw) return null;
   let title: string;
-  try { title = decodeURIComponent(matched[1]).replace(/\+/g, " ").trim(); }
+  try { title = decodeURIComponent(raw).replace(/\+/g, " ").trim(); }
   catch { return null; }
-  // Coordinates / opaque IDs / generic map pins are not business names.
   if (!title || title.length < 3 || title.length > 180 ||
-      /^[-\d.,\s]+$/.test(title)) return null;
+      /^[-\d.,\s]+$/.test(title) || /^https?:\/\//i.test(title)) return null;
   return title;
 }
 
@@ -151,7 +161,7 @@ export async function suggestV1GooglePlace(value: string): Promise<V1GooglePlace
   if (!url) return null;
   const title = titleFromMapsUrl(url);
   const marker = coordinatesFromMapsUrl(url);
-  if (!title || !marker) return null;
+  if (!title) return null;
 
   const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
@@ -164,9 +174,9 @@ export async function suggestV1GooglePlace(value: string): Promise<V1GooglePlace
       textQuery: title,
       maxResultCount: 10,
       languageCode: "id",
-      locationBias: {
+      ...(marker ? { locationBias: {
         circle: { center: { latitude: marker.lat, longitude: marker.lng }, radius: 300 },
-      },
+      } } : {}),
     }),
     signal: AbortSignal.timeout(7000),
     cache: "no-store",
@@ -187,22 +197,27 @@ export async function suggestV1GooglePlace(value: string): Promise<V1GooglePlace
       id: p.id!,
       name: p.displayName!.text!,
       address: p.formattedAddress!,
-      distance: metersBetween(marker.lat, marker.lng, p.location!.latitude!, p.location!.longitude!),
+      distance: marker ? metersBetween(marker.lat, marker.lng, p.location!.latitude!, p.location!.longitude!) : null,
     }))
-    .filter(p => p.distance <= 150)
-    .sort((a, b) => a.distance - b.distance);
+    .filter(p => p.distance === null || p.distance <= 150)
+    .sort((a, b) => (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY));
 
   const exact = candidates.filter(p => normalizePlaceTitle(p.name) === normalizePlaceTitle(title));
   // Auto-resolve only on exact business-name match, close coordinates and no
   // competing nearby match. Google Maps URL must identify a specific place.
   const best = exact[0];
-  if (best && best.distance <= 40 && exact.filter(p => p.distance <= 80).length === 1) {
+  if (marker && best && best.distance !== null && best.distance <= 40 &&
+      exact.filter(p => p.distance !== null && p.distance <= 80).length === 1 &&
+      candidates.filter(p => p.distance !== null && p.distance <= 40).length === 1) {
     return { placeId: best.id, name: best.name, address: best.address, verified: true };
   }
 
-  // For ambiguous results require human confirmation; never auto-activate.
-  const nearest = candidates[0];
-  if (!nearest || nearest.distance > 100 ||
-      candidates.filter(p => p.distance < 80).length !== 1) return null;
-  return { placeId: nearest.id, name: nearest.name, address: nearest.address, verified: false };
+  // Without coordinates, never auto-approve. A unique exact-title Places
+  // match may be shown to the customer for explicit name/address confirmation.
+  const possible = marker
+    ? candidates.filter(p => p.distance !== null && p.distance <= 100)
+    : exact;
+  if (possible.length !== 1) return null;
+  const candidate = possible[0];
+  return { placeId: candidate.id, name: candidate.name, address: candidate.address, verified: false };
 }

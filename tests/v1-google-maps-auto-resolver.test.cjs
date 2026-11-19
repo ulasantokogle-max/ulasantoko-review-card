@@ -79,3 +79,38 @@ test("V1 needs API key for non-explicit Google Maps links", async () => {
   assert.match(source, /titleFromMapsUrl\(url\)/);
   assert.match(source, /coordinatesFromMapsUrl\(url\)/);
 });
+
+test("V1 can interpret Google Maps query share URL without marker, but requires confirmation", async () => {
+  const api = loadResolver(async (url, init) => {
+    assert.equal(url, "https://places.googleapis.com/v1/places:searchText");
+    const body = JSON.parse(init.body);
+    assert.equal(body.textQuery, "MJH Digital Solution");
+    assert.equal(body.locationBias, undefined);
+    return { ok: true, json: async () => ({places:[
+      place("ChIJQueryPlace123", "MJH Digital Solution", -6.20, 106.80),
+    ]})};
+  });
+  const result = await api.suggestV1GooglePlace("https://www.google.com/maps/search/?api=1&query=MJH+Digital+Solution");
+  assert.equal(result.placeId, "ChIJQueryPlace123");
+  assert.equal(result.verified, false);
+});
+
+test("V1 refuses ambiguous query-only results instead of guessing a business", async () => {
+  const api = loadResolver(async () => ({
+    ok: true, json: async () => ({places:[
+      place("ChIJQueryPlace123", "MJH Digital Solution", -6.2, 106.8),
+      place("ChIJQueryPlace456", "MJH Digital Solution", -6.3, 106.9),
+    ]}),
+  }));
+  assert.equal(await api.suggestV1GooglePlace("https://www.google.com/maps/search/?query=MJH+Digital+Solution"), null);
+});
+
+test("V1 can parse long Google Maps URL title without coordinates for human confirmation", async () => {
+  const api = loadResolver(async () => ({
+    ok: true, json: async () => ({ places:[
+      place("ChIJQueryPlace123", "MJH Digital Solution", -6.2, 106.8),
+    ] }),
+  }));
+  const result = await api.suggestV1GooglePlace("https://www.google.com/maps/place/MJH+Digital+Solution/");
+  assert.equal(result.verified, false);
+});
