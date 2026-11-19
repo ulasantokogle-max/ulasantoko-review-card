@@ -16,10 +16,8 @@ const url = "https://maps.app.goo.gl/9QxANuCdbfTxQnr66";
       if(location){current=new URL(location,current).toString();continue;}
       if ((response.headers.get("content-type")||"").includes("text/html")) {
         const body=(await response.text()).slice(0,100000);
-        for (const pattern of [/<link[^>]+rel="canonical"[^>]+href="([^"]+)"/i, /<meta[^>]+property="og:url"[^>]+content="([^"]+)"/i, /<meta[^>]+http-equiv="refresh"[^>]+content="([^"]+)"/i, /"(https?:\\/\\/[^"]+maps[^"]+)"/i]) {
-          const match=body.match(pattern);
-          if(match) console.log("HTML_METADATA",match[1].slice(0,250));
-        }
+        const canonical = body.match(/rel="canonical"[^>]+href="([^"]+)"/i)?.[1];
+        if (canonical) console.log("CANONICAL",canonical.slice(0,250));
         console.log("HTML_TITLE",body.match(/<title>([^<]{0,200})<\/title>/i)?.[1]||"absent");
       }
       break;
