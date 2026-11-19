@@ -181,7 +181,7 @@ export default function ActivationForm() {
       {/* GOOGLE MAPS */}
       <label className="block">
         <span className="text-sm font-semibold">
-          Link Google Maps Bisnis
+          Link Google Review / Google Maps
         </span>
 
         <input
@@ -194,12 +194,12 @@ export default function ActivationForm() {
             setMapsFallback(null);
             setMessage("");
           }}
-          placeholder="https://maps.app.goo.gl/... atau link Tulis Ulasan"
+          placeholder="https://g.page/r/.../review atau https://maps.app.goo.gl/..."
           className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"
         />
 
         <p className="mt-2 text-xs text-gray-500">
-          Untuk masuk langsung ke formulir ulasan, tempel link "Tulis Ulasan" dari Google Business Profile. Link berbagi Google Maps mungkin hanya membuka halaman lokasi.
+          Untuk kartu Direct Google Review, tempel link permintaan ulasan resmi (contoh: https://g.page/r/.../review) dari Google Business Profile. Link Maps biasa hanya menuju halaman lokasi.
         </p>
       </label>
 
