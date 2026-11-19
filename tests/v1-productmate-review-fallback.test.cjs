@@ -64,12 +64,14 @@ test("Productmate unverified output cannot be marked as verified",async()=>{
  const {api}=links({place_id:id,review_url,verification:"verified"});
  assert.equal(await api.suggestV1ProductmatePlace(mapsUrl),null);
 });
-test("Productmate fallback is only invoked after native resolver failure in both V1 paths",()=>{
+test("V1 activation and Provider share the safe parallel resolver",()=>{
  const activation=fs.readFileSync(path.join(__dirname,"../app/api/cards/activate/route.ts"),"utf8");
  const provider=fs.readFileSync(path.join(__dirname,"../app/api/v1/provider/maps-check/route.ts"),"utf8");
  for(const s of [activation,provider]){
-  assert.ok(s.indexOf("suggestV1GooglePlace(")<s.indexOf("suggestV1ProductmatePlace("));
+  assert.match(s,/resolveV1GoogleReviewCandidate\(/);
  }
+ assert.match(src,/Promise\.allSettled\(/);
+ assert.match(src,/provider_conflict/);
  assert.match(activation,/confirmedPlaceId/);
  assert.match(activation,/!candidate.verified && !confirmedPlaceId/);
  assert.doesNotMatch(src,/V3_SUPABASE|v3Supabase|v2Supabase|wifiSupabase/);
