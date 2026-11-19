@@ -1,3 +1,29 @@
+/**
+ * Accept only Google-owned direct review destinations. Do not treat a normal
+ * Google Maps share URL as a direct review form.
+ */
+export function officialV1DirectReviewUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || url.port ||
+        url.hash || url.searchParams.has("continue")) return null;
+    if (url.hostname === "g.page" && !url.search &&
+        /^\/r\/[A-Za-z0-9_-]{8,100}\/review\/?$/.test(url.pathname)) {
+      return url.toString();
+    }
+    if (url.hostname === "search.google.com" &&
+        url.pathname === "/local/writereview" &&
+        [...url.searchParams.keys()].every(key => key === "placeid") &&
+        url.searchParams.getAll("placeid").length === 1 &&
+        /^ChIJ[-_A-Za-z0-9]+$/.test(url.searchParams.get("placeid") ?? "")) {
+      return url.toString();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // V1-only Google Maps link resolver. Never infer a Place ID from a business name.
 const allowedHosts = new Set([
   "maps.app.goo.gl", "maps.google.com", "www.google.com",

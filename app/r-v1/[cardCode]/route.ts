@@ -15,6 +15,10 @@ function isApprovedGoogleReviewUrl(value: string): boolean {
     // Preserve legacy V1 cards. Three existing active cards were saved with
     // genuine Google Maps short URLs instead of the write-review composer.
     // Only an exact Google-owned hostname and simple short-link token qualify.
+    // Official Google Business Profile direct-review links do not need a Place ID.
+    if (url.hostname === "g.page") {
+      return !url.search && /^\/r\/[A-Za-z0-9_-]{8,100}\/review\/?$/.test(url.pathname);
+    }
     if (url.hostname === "maps.app.goo.gl") {
       return /^\/[A-Za-z0-9_-]{10,}$/.test(url.pathname) && !url.search;
     }
