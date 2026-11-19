@@ -231,7 +231,7 @@ function isSafeMapsShortLink(value: string): boolean {
     const url = new URL(value);
     return url.protocol === "https:" && url.hostname === "maps.app.goo.gl" &&
       !url.username && !url.password && !url.port && !url.search && !url.hash &&
-      /^\\/[A-Za-z0-9_-]{10,}$/.test(url.pathname);
+      /^\/[A-Za-z0-9_-]{10,}$/.test(url.pathname);
   } catch {
     return false;
   }
