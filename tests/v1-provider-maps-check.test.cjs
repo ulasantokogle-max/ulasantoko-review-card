@@ -16,7 +16,7 @@ test("V1 Maps check is provider-only, same-origin and rate-limited", () => {
 
 test("V1 Maps check reuses the production resolver but never activates a card", () => {
  const api = read("app/api/v1/provider/maps-check/route.ts");
- assert.match(api,/suggestV1GooglePlace\(mapsUrl,businessName\)/);
+ assert.match(api,/resolveV1GoogleReviewCandidate\(mapsUrl,businessName\)/);
  assert.match(api,/resolveV1GooglePlaceId\(mapsUrl\)/);
  assert.match(api,/candidate.verified \? "resolved" : "confirm"/);
  assert.doesNotMatch(api,/\.from\("cards"\)/);
