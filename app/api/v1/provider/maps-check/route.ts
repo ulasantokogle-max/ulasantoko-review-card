@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isProviderAuthenticated } from "@/lib/v1-provider-auth";
 import { v1SupabaseServer, hasDedicatedV1Database } from "@/lib/v1-supabase";
 import { getV1RateLimitStatus } from "@/lib/v1-rate-limit";
-import { officialV1DirectReviewUrl, resolveV1GooglePlaceId, suggestV1GooglePlace, suggestV1ProductmatePlace } from "@/lib/v1-google-maps";
+import { officialV1DirectReviewUrl, resolveV1GooglePlaceId, resolveV1GoogleReviewCandidate } from "@/lib/v1-google-maps";
 
 export const dynamic = "force-dynamic";
 const headers = {"Cache-Control":"no-store, private"};
@@ -43,9 +43,12 @@ export async function POST(request: NextRequest) {
         message:"Place ID terbaca langsung dari URL Google. Pastikan tujuan ulasannya benar."
       },{headers});
     } catch { /* Only try Places if no explicit Place ID can be read */ }
-    let candidate = await suggestV1GooglePlace(mapsUrl,businessName).catch(() => null);
-    if (!candidate) candidate = await suggestV1ProductmatePlace(mapsUrl).catch(() => null);
+    const resolution = await resolveV1GoogleReviewCandidate(mapsUrl,businessName);
+    const candidate = resolution.candidate;
     if (!candidate) return NextResponse.json({
+      reason: resolution.reason,
+      google_check: resolution.google,
+      fallback_check: resolution.fallback,
       status:"unresolved",
       message:process.env.V1_GOOGLE_PLACES_API_KEY
         ? "Google Places tidak menemukan satu kandidat yang cukup pasti. Periksa nama bisnis, alamat dan API Google Places."
@@ -53,6 +56,9 @@ export async function POST(request: NextRequest) {
     },{headers});
     return NextResponse.json({
       status:candidate.verified ? "resolved" : "confirm",
+      source: resolution.source,
+      google_check: resolution.google,
+      fallback_check: resolution.fallback,
       candidate: {name:candidate.name,address:candidate.address,verified:candidate.verified},
       review_url:"https://search.google.com/local/writereview?placeid="+encodeURIComponent(candidate.placeId),
       message:candidate.verified
