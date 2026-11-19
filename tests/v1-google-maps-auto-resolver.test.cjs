@@ -114,3 +114,59 @@ test("V1 can parse long Google Maps URL title without coordinates for human conf
   const result = await api.suggestV1GooglePlace("https://www.google.com/maps/place/MJH+Digital+Solution/");
   assert.equal(result.verified, false);
 });
+
+test("V1 handles Google Maps short link that redirects to CID-only URL", async () => {
+  let placesCalls = 0;
+  const api = loadResolver(async (url, init) => {
+    if (String(url).includes("maps.app.goo.gl")) {
+      return { status: 302, headers: { get: () => "https://www.google.com/maps?cid=1234567890123456" } };
+    }
+    placesCalls++;
+    const request = JSON.parse(init.body);
+    assert.equal(request.textQuery, "MJH (Media Jump Start Hub) Digital Solution");
+    return { ok: true, json: async () => ({ places: [
+      place("ChIJExactMJD123", "MJH (Media Jump Start Hub) Digital Solution", -6.2, 106.8),
+    ] }) };
+  });
+  const result = await api.suggestV1GooglePlace(
+    "https://maps.app.goo.gl/9QxANuCdbfTxQnr66",
+    "MJH (Media Jump Start Hub) Digital Solution",
+  );
+  assert.equal(result.placeId, "ChIJExactMJD123");
+  assert.equal(result.verified, false);
+  assert.equal(placesCalls, 1);
+});
+
+test("V1 CID fallback never auto-selects a different business", async () => {
+  const api = loadResolver(async (url) => String(url).includes("maps.app.goo.gl")
+    ? { status: 302, headers: { get: () => "https://www.google.com/maps?cid=123456" } }
+    : { ok: true, json: async () => ({ places: [
+      place("ChIJIncorrect", "Different Business Name", -6.2, 106.8),
+    ] }) });
+  assert.equal(await api.suggestV1GooglePlace(
+    "https://maps.app.goo.gl/9QxANuCdbfTxQnr66", "MJH (Media Jump Start Hub) Digital Solution"), null);
+});
+
+test("V1 CID fallback rejects multiple exact-name business branches", async () => {
+  const api = loadResolver(async url => String(url).includes("maps.app.goo.gl")
+    ? {status:302,headers:{get:()=> "https://www.google.com/maps?cid=11223"}}
+    : {ok:true,json:async()=>({places:[
+      place("ChIJBranchA12345", "MJH (Media Jump Start Hub) Digital Solution", -6.2, 106.8),
+      place("ChIJBranchB12345", "MJH (Media Jump Start Hub) Digital Solution", -6.1, 106.7),
+    ]})});
+  assert.equal(await api.suggestV1GooglePlace(
+    "https://maps.app.goo.gl/9QxANuCdbfTxQnr66", "MJH (Media Jump Start Hub) Digital Solution"), null);
+});
+
+test("V1 CID fallback never searches untrusted redirected domains", async () => {
+  let calledPlaces = false;
+  const api = loadResolver(async url => {
+    if (String(url).includes("maps.app.goo.gl"))
+      return {status:302,headers:{get:()=> "https://evil.example/maps?cid=123"}};
+    calledPlaces = true;
+    return {ok:true,json:async()=>({places:[]})};
+  });
+  assert.equal(await api.suggestV1GooglePlace(
+    "https://maps.app.goo.gl/9QxANuCdbfTxQnr66", "MJH (Media Jump Start Hub) Digital Solution"),null);
+  assert.equal(calledPlaces,false);
+});

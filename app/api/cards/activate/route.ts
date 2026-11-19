@@ -244,7 +244,7 @@ if (directReviewUrl) {
   } else {
     let candidate: Awaited<ReturnType<typeof suggestV1GooglePlace>> = null;
     try {
-      candidate = await suggestV1GooglePlace(googleMapsUrl);
+      candidate = await suggestV1GooglePlace(googleMapsUrl, businessName);
     } catch (error) {
       console.error("V1_MAPS_RESOLVE_ERROR", error instanceof Error ? error.name : "unknown");
     }
