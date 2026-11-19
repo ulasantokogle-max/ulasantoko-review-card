@@ -102,6 +102,7 @@ export default function ProviderToolsPage() {
             <a className="text-sm text-blue-700 underline" href="/admin/cards">Buat kartu baru</a>
             <a className="text-sm text-blue-700 underline" href="/admin/provider/bulk-create">Bulk Create Massal</a>
             <a className="text-sm text-blue-700 underline" href="/admin/provider/bulk-designer">Bulk Designer</a>
+            <a className="text-sm font-semibold text-blue-700 underline" href="/admin/provider/nfc-writer">Tulis NFC</a>
             <a className="text-sm text-blue-700 underline" href="/admin/provider/diagnostics">Status Sistem V1</a>
             <button type="button" className="text-sm underline" onClick={logout}>Keluar</button>
           </div>
