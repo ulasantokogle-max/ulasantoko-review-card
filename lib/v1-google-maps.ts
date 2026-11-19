@@ -321,3 +321,47 @@ export async function suggestV1ProductmatePlace(value: string): Promise<V1Google
     verified:false, // NEVER auto-activate a third-party-derived candidate.
   };
 }
+
+/**
+ * V1-only parallel resolver. Search Google and third-party fallback concurrently
+ * to avoid chained timeouts on slow providers. Accept a third-party result only
+ * after its independent Google Details validation (inside that resolver).
+ *
+ * If two providers disagree on the Place ID, fail closed instead of assigning
+ * somebody else's review page. No database writes or stored credentials.
+ */
+export type V1ReviewResolution = {
+  candidate: V1GooglePlaceCandidate | null;
+  source: "google" | "productmate" | "none";
+  reason: "ok" | "unresolved" | "provider_conflict" | "google_error" | "fallback_error";
+  google: "found" | "unresolved" | "error";
+  fallback: "found" | "unresolved" | "error";
+};
+
+export async function resolveV1GoogleReviewCandidate(
+  url: string,
+  businessName: string,
+): Promise<V1ReviewResolution> {
+  // Both helpers validate the final Google URL and never follow arbitrary hosts.
+  const [googleResult, fallbackResult] = await Promise.allSettled([
+    suggestV1GooglePlace(url, businessName),
+    suggestV1ProductmatePlace(url),
+  ]);
+  const google = googleResult.status === "rejected" ? null : googleResult.value;
+  const fallback = fallbackResult.status === "rejected" ? null : fallbackResult.value;
+  const googleStatus = googleResult.status === "rejected" ? "error" : google ? "found" : "unresolved";
+  const fallbackStatus = fallbackResult.status === "rejected" ? "error" : fallback ? "found" : "unresolved";
+  const common = {google:googleStatus, fallback:fallbackStatus} as const;
+
+  if (google && fallback && google.placeId !== fallback.placeId) {
+    return {candidate:null,source:"none",reason:"provider_conflict",...common};
+  }
+  if (google) return {candidate:google,source:"google",reason:"ok",...common};
+  if (fallback) return {candidate:fallback,source:"productmate",reason:"ok",...common};
+  return {
+    candidate:null,source:"none",
+    reason:googleResult.status === "rejected" ? "google_error" :
+      fallbackResult.status === "rejected" ? "fallback_error" : "unresolved",
+    ...common,
+  };
+}
