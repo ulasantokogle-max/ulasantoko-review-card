@@ -79,7 +79,7 @@ export default function ActivationForm() {
       if (data.code === "CONFIRM_MAPS_LINK" && data.maps_url === reviewUrl.trim()) {
         setCandidate(null);
         setMapsFallback(data.maps_url);
-        setMessage(data.message);
+        setMessage(""); // Confirmation is an option, not an activation error.
         return;
       }
 
@@ -125,9 +125,7 @@ export default function ActivationForm() {
         <input
           required
           value={cardCode}
-          onChange={(e) =>
-            setCardCode(e.target.value.toUpperCase())
-          }
+          onChange={(e) => { setCardCode(e.target.value.toUpperCase()); setCandidate(null); setMapsFallback(null); setMessage(""); }}
           placeholder="Contoh: ULAS-00125"
           maxLength={24}
           autoComplete="off"
@@ -174,9 +172,7 @@ export default function ActivationForm() {
         <input
           required
           value={businessName}
-          onChange={(e) =>
-            setBusinessName(e.target.value)
-          }
+          onChange={(e) => { setBusinessName(e.target.value); setCandidate(null); setMapsFallback(null); setMessage(""); }}
           placeholder="Nama toko / bisnis"
           className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"
         />
@@ -196,13 +192,14 @@ export default function ActivationForm() {
             setReviewUrl(e.target.value);
             setCandidate(null);
             setMapsFallback(null);
+            setMessage("");
           }}
           placeholder="https://maps.app.goo.gl/... atau link Tulis Ulasan"
           className="mt-2 w-full rounded-2xl border px-4 py-3 outline-none"
         />
 
         <p className="mt-2 text-xs text-gray-500">
-          Masukkan link Google Maps bisnis Anda. Jika sistem menemukan kemungkinan lokasi, pastikan nama dan alamatnya sebelum aktivasi.
+          Untuk masuk langsung ke formulir ulasan, tempel link "Tulis Ulasan" dari Google Business Profile. Link berbagi Google Maps mungkin hanya membuka halaman lokasi.
         </p>
       </label>
 
@@ -219,9 +216,9 @@ export default function ActivationForm() {
 
       {mapsFallback && <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="status">
         <p className="font-bold">Konfirmasi tautan Google Maps</p>
-        <p className="mt-2">Sistem belum dapat menemukan Place ID. Kartu akan membuka halaman Google Maps bisnis, bukan langsung formulir Tulis Ulasan.</p>
+        <p className="mt-2">Place ID belum ditemukan. Jika Anda melanjutkan, kartu akan membuka halaman Google Maps bisnis, <strong>bukan langsung formulir Tulis Ulasan.</strong></p>
         <a href={mapsFallback} target="_blank" rel="noopener noreferrer" className="mt-2 block break-all font-semibold underline">Buka dan periksa lokasi bisnis di Google Maps</a>
-        <p className="mt-2 text-xs">Pastikan bisnis dan alamat sesuai. Jika memerlukan ulasan langsung, gunakan link Tulis Ulasan dari Google Business Profile.</p>
+        <p className="mt-2 text-xs">Periksa nama dan alamat lokasi di Google Maps. Jika ingin pelanggan langsung mengulas, ganti kolom link dengan tautan "Tulis Ulasan" resmi.</p>
         <button type="button" className="mt-3 underline" onClick={() => { setMapsFallback(null); setMessage(""); }}>Batalkan pilihan Maps</button>
       </div>}
 
@@ -240,7 +237,7 @@ export default function ActivationForm() {
       >
         {loading
           ? "Memproses..."
-          : candidate ? "Konfirmasi & Aktifkan Kartu" : mapsFallback ? "Saya Setuju, Aktifkan ke Google Maps" : "Aktifkan Kartu"}
+          : candidate ? "Konfirmasi & Aktifkan Kartu" : mapsFallback ? "Aktifkan ke Maps (Bukan Ulasan Langsung)" : "Aktifkan Kartu"}
       </button>
     </form>
   );
