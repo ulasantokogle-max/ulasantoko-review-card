@@ -261,3 +261,36 @@ test("V1 back uses uploaded artwork of opposite QR variant when its own slot is 
   assert.match(page,/\.\.\.selectedArtwork/);
   assert.match(page,/\.\.\.artworkFor\(face,design\)/);
 });
+
+test("Back tab always restores complementary QR placement and fresh preview",()=>{
+  assert.match(page,/function openPreviewSide\(next:V1Side\)/);
+  assert.match(page,/if\(next==="back"\)\{/);
+  assert.match(page,/const mirrored=v1OppositeQrDesign\(frontDesign,backDesign\)/);
+  assert.match(page,/setAutoMirrorBack\(true\)/);
+  assert.match(page,/setBackDesign\(mirrored\)/);
+  assert.match(page,/setBackPosition\(templates\[mirrored\]/);
+  assert.match(page,/setPreview\(""\)/);
+  assert.match(page,/onClick=\{\(\)=>openPreviewSide\("back"\)\}>Belakang/);
+  assert.match(page,/onClick=\{\(\)=>openPreviewSide\("front"\)\}>Depan/);
+  for (const front of layouts.V1_DESIGNS) {
+    for (const back of layouts.V1_DESIGNS) {
+      const effective=layouts.v1OppositeQrDesign(front.key,back.key);
+      const frontP=layouts.v1DefaultPlacement(front.key);
+      const backP=layouts.v1DefaultPlacement(effective);
+      assert.notEqual(frontP.x,backP.x,front.key+" should oppose "+back.key);
+      assert.equal(frontP.y,backP.y);
+    }
+  }
+});
+
+test("Back preview and exports keep matching QR placement and safely mask old uploaded QR",()=>{
+  assert.match(page,/const effectiveBackDesign=autoMirrorBack\?v1OppositeQrDesign\(frontDesign,backDesign\):backDesign/);
+  assert.match(page,/const useOppositeArtwork=face==="back" && autoMirrorBack/);
+  assert.match(page,/!templates\[design\] && Boolean\(templates\[other\]\)/);
+  assert.match(page,/templateQrCleanup:useOppositeArtwork/);
+  assert.match(page,/showTemplateNfc:useOppositeArtwork\?true/);
+  assert.match(page,/\.\.\.artworkFor\(face,design\)/);
+  assert.match(page,/renderV1Card\(renderSettings\(first,side\)\)/);
+  assert.match(page,/renderV1Card\(renderSettings\(card,face\)\)/);
+  assert.match(page,/renderV1Card\(renderSettings\(card,"back",1417\)\)/);
+});
