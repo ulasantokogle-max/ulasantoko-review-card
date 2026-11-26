@@ -18,8 +18,8 @@ test("V1 designer supports four locally uploaded templates and front/back previe
   assert.match(page,/Upload PNG\/JPG/);
   assert.match(page,/setTemplates/);
   assert.match(page,/Preview kartu pertama/);
-  assert.match(page,/setSide\("front"\)/);
-  assert.match(page,/setSide\("back"\)/);
+  assert.match(page,/openPreviewSide\("front"\)/);
+  assert.match(page,/openPreviewSide\("back"\)/);
   assert.match(page,/pixels:650/);
 });
 test("V1 designer enforces verification and never exports a PIN",()=>{
