@@ -219,7 +219,7 @@ test("both built-in left QR designs share Google artwork and drawn hand NFC",()=
   assert.deepEqual(layouts.v1DefaultPlacement("white_left"),{x:31,y:58,size:26});
   assert.deepEqual(layouts.v1DefaultPlacement("navy_left"),{x:31,y:58,size:26});
   assert.match(exportsSource,/design==="navy_left"\|\|design==="white_left"/);
-  assert.match(exportsSource,/drawReferenceLeftCard\(ctx,size\)/);
+  assert.match(exportsSource,/drawReferenceLeftCard\(ctx,size,referenceRight\)/);
   assert.match(exportsSource,/Finger, palm and sleeve/);
   assert.match(exportsSource,/Beri Ulasan di/);
   assert.match(exportsSource,/Scan QR atau tap NFC/);
