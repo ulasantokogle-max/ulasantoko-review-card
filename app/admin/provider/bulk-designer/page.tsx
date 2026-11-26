@@ -44,6 +44,24 @@ export default function BulkDesignerV1Page() {
     (templates[effectiveBackDesign]?v1UploadedTemplatePlacement(effectiveBackDesign):v1DefaultPlacement(effectiveBackDesign));
   const selectedDesign=side==="front"?frontDesign:effectiveBackDesign;
   const selectedPlacement=side==="front"?frontPosition:effectiveBackPosition;
+  // If only the opposite-side artwork was uploaded (as in the reported
+  // screenshot), keep that artwork and move the active QR to the blank frame.
+  // Mask its old QR and draw NFC on the vacated side; never flip its text/logo.
+  function artworkFor(face:V1Side,design:V1DesignKey){
+    const other=v1OppositeQrDesign(design,design);
+    const useOppositeArtwork=face==="back" && autoMirrorBack &&
+      !templates[design] && Boolean(templates[other]);
+    const templateDataUrl=templates[design] || (useOppositeArtwork?templates[other]:undefined);
+    return {
+      templateDataUrl,
+      templateQrCleanup:useOppositeArtwork
+        ? {...v1DefaultTemplateQrCleanup(design),enabled:true}
+        : templates[design]?templateCleanup[design]:undefined,
+      showTemplateNfc:useOppositeArtwork?true:
+        templates[design]?(templateNfc[design]??true):false,
+    };
+  }
+  const selectedArtwork=artworkFor(side,selectedDesign);
   const first=cards[0];
 
   useEffect(()=>{
@@ -52,14 +70,12 @@ export default function BulkDesignerV1Page() {
     setPreviewError("");
     void renderV1Card({
       card:first,design:selectedDesign,mode,placement:selectedPlacement,
-      templateDataUrl:templates[selectedDesign],
-      templateQrCleanup:templates[selectedDesign]?templateCleanup[selectedDesign]:undefined,
-      showTemplateNfc:templates[selectedDesign]?(templateNfc[selectedDesign]??true):false,
+      ...selectedArtwork,
       pixels:650,
     }).then(canvas=>{if(!cancelled)setPreview(canvas.toDataURL("image/png"));})
       .catch(e=>{if(!cancelled)setPreviewError(e instanceof Error?e.message:"Preview gagal.");});
     return ()=>{cancelled=true;};
-  },[first,selectedDesign,mode,selectedPlacement,templates,templateCleanup,templateNfc]);
+  },[first,selectedDesign,mode,selectedPlacement,templates,templateCleanup,templateNfc,autoMirrorBack,side]);
 
   async function verifyCodes(codes:string[]){
     const response=await fetch("/api/v1/provider/validate-cards",{
@@ -153,9 +169,7 @@ export default function BulkDesignerV1Page() {
     return {
       card,design,mode,pixels,
       placement:face==="front"?frontPosition:effectiveBackPosition,
-      templateDataUrl:templates[design],
-      templateQrCleanup:templates[design]?templateCleanup[design]:undefined,
-      showTemplateNfc:templates[design]?(templateNfc[design]??true):false,
+      ...artworkFor(face,design),
     };
   }
   async function downloadFirstPng(){
