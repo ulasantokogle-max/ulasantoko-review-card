@@ -95,8 +95,8 @@ test("uploaded templates mask their old right-hand QR when new V1 QR is on the l
   assert.ok(safe.x<=100-safe.size/2 && safe.y>=safe.size/2);
 });
 test("same template QR cleanup is used by live preview, HD PNG and print exports",()=>{
-  assert.match(page,/templateQrCleanup:templates\[selectedDesign\]\?templateCleanup\[selectedDesign\]:undefined/);
-  assert.match(page,/templateQrCleanup:templates\[design\]\?templateCleanup\[design\]:undefined/);
+  assert.match(page,/templateQrCleanup:useOppositeArtwork/);
+  assert.match(page,/\.\.\.artworkFor\(face,design\)/);
   assert.match(page,/setTemplateCleanup/);
   assert.match(page,/v1UploadedTemplatePlacement\(key\)/);
   assert.match(page,/Tutup QR lama yang ada di gambar template/);
@@ -172,8 +172,8 @@ test("uploaded QR fits completely below the five stars and inside the original f
     "left QR preset uses reference frame position");
 });
 test("template NFC flag is respected consistently by preview, PNG, ZIP and print",()=>{
-  assert.match(page,/showTemplateNfc:templates\[selectedDesign\]\?\(templateNfc\[selectedDesign\]\?\?true\):false/);
-  assert.match(page,/showTemplateNfc:templates\[design\]\?\(templateNfc\[design\]\?\?true\):false/);
+  assert.match(page,/showTemplateNfc:useOppositeArtwork\?true/);
+  assert.match(page,/showTemplateNfc:useOppositeArtwork\?true/);
   assert.match(page,/setTemplateNfc/);
   assert.match(page,/Tampilkan gambar Tap NFC di area kanan/);
   assert.match(exportsSource,/if\(settings\.showTemplateNfc===true\)/);
@@ -250,4 +250,14 @@ test("built-in right-hand Google Review artwork moves frame and NFC, never flips
     exportsSource.indexOf('ctx.fillText("Scan QR atau tap NFC"'),
     "the CTA text must remain unmirrored");
   assert.match(page,/renderV1Card\(renderSettings\(card,face\)\)/);
+});
+
+test("V1 back uses uploaded artwork of opposite QR variant when its own slot is empty",()=>{
+  assert.match(page,/const useOppositeArtwork=face==="back" && autoMirrorBack/);
+  assert.match(page,/!templates\[design\] && Boolean\(templates\[other\]\)/);
+  assert.match(page,/const templateDataUrl=templates\[design\] \|\| \(useOppositeArtwork\?templates\[other\]:undefined\)/);
+  assert.match(page,/\.\.\.v1DefaultTemplateQrCleanup\(design\),enabled:true/);
+  assert.match(page,/showTemplateNfc:useOppositeArtwork\?true/);
+  assert.match(page,/\.\.\.selectedArtwork/);
+  assert.match(page,/\.\.\.artworkFor\(face,design\)/);
 });
