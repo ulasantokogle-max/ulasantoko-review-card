@@ -2,7 +2,7 @@
 import {useEffect,useState} from "react";
 import {parseV1BulkCsv} from "@/lib/v1-bulk-csv";
 import {
-  V1_DESIGNS,v1CardUrl,v1DefaultPlacement,v1UploadedTemplatePlacement,v1DefaultTemplateQrCleanup,v1PageLayout,v1MirrorSlot,
+  V1_DESIGNS,v1CardUrl,v1DefaultPlacement,v1UploadedTemplatePlacement,v1DefaultTemplateQrCleanup,v1PageLayout,v1MirrorSlot,v1OppositeQrDesign,
   type V1CardData,type V1DesignKey,type V1QRMode,type V1QRPlacement,
   type V1Side,type V1Paper,type V1Flip,type V1TemplateQrCleanup
 } from "@/lib/v1-designer-layout";
@@ -14,12 +14,13 @@ export default function BulkDesignerV1Page() {
   const [cards,setCards]=useState<V1CardData[]>([]);
   const [filename,setFilename]=useState("");
   const [frontDesign,setFrontDesign]=useState<V1DesignKey>("navy_right");
-  const [backDesign,setBackDesign]=useState<V1DesignKey>("navy_left");
+  const [backDesign,setBackDesign]=useState<V1DesignKey>("navy_right");
+  const [autoMirrorBack,setAutoMirrorBack]=useState(true);
   const [templates,setTemplates]=useState<Partial<Record<V1DesignKey,string>>>({});
   const [templateCleanup,setTemplateCleanup]=useState<Partial<Record<V1DesignKey,V1TemplateQrCleanup>>>({});
   const [templateNfc,setTemplateNfc]=useState<Partial<Record<V1DesignKey,boolean>>>({});
   const [frontPosition,setFrontPosition]=useState<V1QRPlacement>(v1DefaultPlacement("navy_right"));
-  const [backPosition,setBackPosition]=useState<V1QRPlacement>(v1DefaultPlacement("navy_left"));
+  const [backPosition,setBackPosition]=useState<V1QRPlacement>(v1DefaultPlacement("navy_right"));
   const [mode,setMode]=useState<V1QRMode>("rainbow");
   const [side,setSide]=useState<V1Side>("front");
   const [paper,setPaper]=useState<V1Paper>("a3plus");
@@ -37,8 +38,30 @@ export default function BulkDesignerV1Page() {
       .catch(()=>setAuthenticated(false)).finally(()=>setChecking(false));
   },[]);
 
-  const selectedDesign=side==="front"?frontDesign:backDesign;
-  const selectedPlacement=side==="front"?frontPosition:backPosition;
+  // One source of truth for back layout: preview, slider, PNG, ZIP and print.
+  const effectiveBackDesign=autoMirrorBack?v1OppositeQrDesign(frontDesign,backDesign):backDesign;
+  const effectiveBackPosition=effectiveBackDesign===backDesign?backPosition:
+    (templates[effectiveBackDesign]?v1UploadedTemplatePlacement(effectiveBackDesign):v1DefaultPlacement(effectiveBackDesign));
+  const selectedDesign=side==="front"?frontDesign:effectiveBackDesign;
+  const selectedPlacement=side==="front"?frontPosition:effectiveBackPosition;
+  // If only the opposite-side artwork was uploaded (as in the reported
+  // screenshot), keep that artwork and move the active QR to the blank frame.
+  // Mask its old QR and draw NFC on the vacated side; never flip its text/logo.
+  function artworkFor(face:V1Side,design:V1DesignKey){
+    const other=v1OppositeQrDesign(design,design);
+    const useOppositeArtwork=face==="back" && autoMirrorBack &&
+      !templates[design] && Boolean(templates[other]);
+    const templateDataUrl=templates[design] || (useOppositeArtwork?templates[other]:undefined);
+    return {
+      templateDataUrl,
+      templateQrCleanup:useOppositeArtwork
+        ? {...v1DefaultTemplateQrCleanup(design),enabled:true}
+        : templates[design]?templateCleanup[design]:undefined,
+      showTemplateNfc:useOppositeArtwork?true:
+        templates[design]?(templateNfc[design]??true):false,
+    };
+  }
+  const selectedArtwork=artworkFor(side,selectedDesign);
   const first=cards[0];
 
   useEffect(()=>{
@@ -47,14 +70,12 @@ export default function BulkDesignerV1Page() {
     setPreviewError("");
     void renderV1Card({
       card:first,design:selectedDesign,mode,placement:selectedPlacement,
-      templateDataUrl:templates[selectedDesign],
-      templateQrCleanup:templates[selectedDesign]?templateCleanup[selectedDesign]:undefined,
-      showTemplateNfc:templates[selectedDesign]?(templateNfc[selectedDesign]??true):false,
+      ...selectedArtwork,
       pixels:650,
     }).then(canvas=>{if(!cancelled)setPreview(canvas.toDataURL("image/png"));})
       .catch(e=>{if(!cancelled)setPreviewError(e instanceof Error?e.message:"Preview gagal.");});
     return ()=>{cancelled=true;};
-  },[first,selectedDesign,mode,selectedPlacement,templates,templateCleanup,templateNfc]);
+  },[first,selectedDesign,mode,selectedPlacement,templates,templateCleanup,templateNfc,autoMirrorBack,side]);
 
   async function verifyCodes(codes:string[]){
     const response=await fetch("/api/v1/provider/validate-cards",{
@@ -108,8 +129,9 @@ export default function BulkDesignerV1Page() {
         setFrontDesign(key);
         setFrontPosition(v1UploadedTemplatePlacement(key));
       }else{
-        setBackDesign(key);
-        setBackPosition(v1UploadedTemplatePlacement(key));
+        const effective=autoMirrorBack?v1OppositeQrDesign(frontDesign,key):key;
+        setBackDesign(effective);
+        setBackPosition(templates[effective]?v1UploadedTemplatePlacement(effective):v1DefaultPlacement(effective));
       }
       setError("");
     }catch(e){setError(e instanceof Error?e.message:"Template gagal diproses.");}
@@ -119,8 +141,9 @@ export default function BulkDesignerV1Page() {
       setFrontDesign(next);
       setFrontPosition(templates[next]?v1UploadedTemplatePlacement(next):v1DefaultPlacement(next));
     }else{
-      setBackDesign(next);
-      setBackPosition(templates[next]?v1UploadedTemplatePlacement(next):v1DefaultPlacement(next));
+      const effective=autoMirrorBack?v1OppositeQrDesign(frontDesign,next):next;
+      setBackDesign(effective);
+      setBackPosition(templates[effective]?v1UploadedTemplatePlacement(effective):v1DefaultPlacement(effective));
     }
   }
   function changeTemplateCleanup(patch:Partial<V1TemplateQrCleanup>){
@@ -136,16 +159,17 @@ export default function BulkDesignerV1Page() {
   function positionValue(field:keyof V1QRPlacement,value:number){
     const fn=(old:V1QRPlacement)=>({...old,[field]:value});
     if(side==="front")setFrontPosition(fn);
-    else setBackPosition(fn);
+    else {
+      setBackDesign(effectiveBackDesign);
+      setBackPosition(fn(effectiveBackPosition));
+    }
   }
   function renderSettings(card:V1CardData,face:V1Side,pixels=1417){
-    const design=face==="front"?frontDesign:backDesign;
+    const design=face==="front"?frontDesign:effectiveBackDesign;
     return {
       card,design,mode,pixels,
-      placement:face==="front"?frontPosition:backPosition,
-      templateDataUrl:templates[design],
-      templateQrCleanup:templates[design]?templateCleanup[design]:undefined,
-      showTemplateNfc:templates[design]?(templateNfc[design]??true):false,
+      placement:face==="front"?frontPosition:effectiveBackPosition,
+      ...artworkFor(face,design),
     };
   }
   async function downloadFirstPng(){
@@ -278,17 +302,27 @@ export default function BulkDesignerV1Page() {
             <div className="mt-4 grid grid-cols-2 gap-3">
               <label className="block text-xs font-semibold">Desain depan
                 <select className="mt-1 w-full rounded-lg border p-2 text-sm" value={frontDesign}
-                  onChange={e=>{const next=e.target.value as V1DesignKey;setFrontDesign(next);setFrontPosition(templates[next]?v1UploadedTemplatePlacement(next):v1DefaultPlacement(next));}}>
+                  onChange={e=>{const next=e.target.value as V1DesignKey;setFrontDesign(next);setFrontPosition(templates[next]?v1UploadedTemplatePlacement(next):v1DefaultPlacement(next));
+                    if(autoMirrorBack){const mirrored=v1OppositeQrDesign(next,backDesign);setBackDesign(mirrored);setBackPosition(templates[mirrored]?v1UploadedTemplatePlacement(mirrored):v1DefaultPlacement(mirrored));}}}>
                   {V1_DESIGNS.map(d=><option value={d.key} key={d.key}>{d.title}</option>)}
                 </select>
               </label>
               <label className="block text-xs font-semibold">Desain belakang
-                <select className="mt-1 w-full rounded-lg border p-2 text-sm" value={backDesign}
-                  onChange={e=>{const next=e.target.value as V1DesignKey;setBackDesign(next);setBackPosition(templates[next]?v1UploadedTemplatePlacement(next):v1DefaultPlacement(next));}}>
+                <select className="mt-1 w-full rounded-lg border p-2 text-sm" value={effectiveBackDesign}
+                  onChange={e=>{const chosen=e.target.value as V1DesignKey;const next=autoMirrorBack?v1OppositeQrDesign(frontDesign,chosen):chosen;
+                    setBackDesign(next);setBackPosition(templates[next]?v1UploadedTemplatePlacement(next):v1DefaultPlacement(next));}}>
                   {V1_DESIGNS.map(d=><option value={d.key} key={d.key}>{d.title}</option>)}
                 </select>
               </label>
             </div>
+            <label className="mt-4 flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-950">
+              <input type="checkbox" checked={autoMirrorBack} onChange={e=>{
+                const enabled=e.target.checked;setAutoMirrorBack(enabled);
+                if(enabled){const mirrored=v1OppositeQrDesign(frontDesign,backDesign);setBackDesign(mirrored);
+                  setBackPosition(templates[mirrored]?v1UploadedTemplatePlacement(mirrored):v1DefaultPlacement(mirrored));}
+              }}/>
+              <span><strong>Otomatis tukar QR/NFC di belakang.</strong> Saat membuka tab Belakang, QR berada di sisi berlawanan dari Depan. Gunakan template kanan/kiri yang cocok jika mengunggah gambar sendiri. Nonaktifkan untuk posisi custom.</span>
+            </label>
             <label className="mt-4 block text-sm font-semibold">Warna QR Code</label>
             <div className="mt-2 flex flex-wrap gap-3 text-sm">
               {([["rainbow","Rainbow"],["black","Hitam-putih"],["blue","Biru"]] as const).map(([value,label])=>

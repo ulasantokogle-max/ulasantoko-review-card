@@ -11,6 +11,14 @@ export const V1_DESIGNS: {key: V1DesignKey; title: string; dark: boolean; qrLeft
   {key:"white_left",title:"4. Putih QR kiri",dark:false,qrLeft:true},
 ];
 
+/** Preserve the colour family selected for the back, but use the opposite
+ * QR/NFC side from the front so two-sided cards are complementary. */
+export function v1OppositeQrDesign(front: V1DesignKey, back: V1DesignKey): V1DesignKey {
+  const family = back.startsWith("navy") ? "navy" : "white";
+  const opposite = front.endsWith("_left") ? "right" : "left";
+  return (family + "_" + opposite) as V1DesignKey;
+}
+
 export type V1QRPlacement = {x: number; y: number; size: number};
 export type V1CardData = {code: string; url: string};
 
@@ -50,9 +58,7 @@ export function v1SafeTemplateQrCleanup(v: V1TemplateQrCleanup): V1TemplateQrCle
 
 
 export function v1DefaultPlacement(key: V1DesignKey): V1QRPlacement {
-  return key==="navy_left"||key==="white_left"
-    ? {x:31,y:58,size:26}
-    : {x:71,y:55,size:35};
+  return {x:key.endsWith("_left") ? 31 : 69,y:58,size:26};
 }
 /** A 26%-width QR fits inside the ~31% printed QR frame of uploaded V1 art.
  * Unlike built-in presets this never overlaps the Google five-star row.

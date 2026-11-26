@@ -50,7 +50,7 @@ test("QR position and size clamp within card safety margins",()=>{
   assert.equal(p.size,43);
   assert.ok(p.x>=24.5&&p.y<=75.5);
   assert.deepEqual(layouts.v1DefaultPlacement("navy_left"),{x:31,y:58,size:26});
-  assert.deepEqual(layouts.v1DefaultPlacement("white_right"),{x:71,y:55,size:35});
+  assert.deepEqual(layouts.v1DefaultPlacement("white_right"),{x:69,y:58,size:26});
 });
 test("export module generates real PNG, client-side ZIP and A3+ print options",()=>{
   assert.match(exportsSource,/errorCorrectionLevel:"H"/);
@@ -95,8 +95,8 @@ test("uploaded templates mask their old right-hand QR when new V1 QR is on the l
   assert.ok(safe.x<=100-safe.size/2 && safe.y>=safe.size/2);
 });
 test("same template QR cleanup is used by live preview, HD PNG and print exports",()=>{
-  assert.match(page,/templateQrCleanup:templates\[selectedDesign\]\?templateCleanup\[selectedDesign\]:undefined/);
-  assert.match(page,/templateQrCleanup:templates\[design\]\?templateCleanup\[design\]:undefined/);
+  assert.match(page,/templateQrCleanup:useOppositeArtwork/);
+  assert.match(page,/\.\.\.artworkFor\(face,design\)/);
   assert.match(page,/setTemplateCleanup/);
   assert.match(page,/v1UploadedTemplatePlacement\(key\)/);
   assert.match(page,/Tutup QR lama yang ada di gambar template/);
@@ -172,8 +172,8 @@ test("uploaded QR fits completely below the five stars and inside the original f
     "left QR preset uses reference frame position");
 });
 test("template NFC flag is respected consistently by preview, PNG, ZIP and print",()=>{
-  assert.match(page,/showTemplateNfc:templates\[selectedDesign\]\?\(templateNfc\[selectedDesign\]\?\?true\):false/);
-  assert.match(page,/showTemplateNfc:templates\[design\]\?\(templateNfc\[design\]\?\?true\):false/);
+  assert.match(page,/showTemplateNfc:useOppositeArtwork\?true/);
+  assert.match(page,/showTemplateNfc:useOppositeArtwork\?true/);
   assert.match(page,/setTemplateNfc/);
   assert.match(page,/Tampilkan gambar Tap NFC di area kanan/);
   assert.match(exportsSource,/if\(settings\.showTemplateNfc===true\)/);
@@ -197,7 +197,7 @@ test("uploaded artwork uses the QR canvas only, with quiet zone for scanning",as
   assert.match(source,/width:720,margin:4,errorCorrectionLevel:"H"/);
   assert.match(source,/light:"#ffffff"/);
   assert.doesNotMatch(source,/light:"#0000"/);
-  assert.match(source,/if\(!custom&&!referenceLeft\)\{\s*const whiteBacking=px\+size\*0\.012/);
+  assert.match(source,/if\(!custom&&!referenceLeft&&!referenceRight\)\{\s*const whiteBacking=px\+size\*0\.012/);
   assert.doesNotMatch(source,/Math\.min\(29,position\.size\+3\)/);
   assert.match(source,/ctx\.drawImage\(qr,size\*position\.x\/100-px\/2,size\*position\.y\/100-px\/2,px,px\)/);
   // Both the preview and every PNG/ZIP/PDF export share the renderer.
@@ -219,10 +219,45 @@ test("both built-in left QR designs share Google artwork and drawn hand NFC",()=
   assert.deepEqual(layouts.v1DefaultPlacement("white_left"),{x:31,y:58,size:26});
   assert.deepEqual(layouts.v1DefaultPlacement("navy_left"),{x:31,y:58,size:26});
   assert.match(exportsSource,/design==="navy_left"\|\|design==="white_left"/);
-  assert.match(exportsSource,/drawReferenceLeftCard\(ctx,size\)/);
+  assert.match(exportsSource,/drawReferenceLeftCard\(ctx,size,referenceRight\)/);
   assert.match(exportsSource,/Finger, palm and sleeve/);
   assert.match(exportsSource,/Beri Ulasan di/);
   assert.match(exportsSource,/Scan QR atau tap NFC/);
   assert.match(exportsSource,/Yuk/);
   assert.doesNotMatch(exportsSource,/ctx\.fillRect\(size\*\.80,size\*\.912/);
+});
+
+test("automatic V1 back layout mirrors QR position while preserving colour family",()=>{
+  assert.equal(layouts.v1OppositeQrDesign("white_left","navy_left"),"navy_right");
+  assert.equal(layouts.v1OppositeQrDesign("navy_right","white_right"),"white_left");
+  assert.equal(layouts.v1OppositeQrDesign("navy_left","white_right"),"white_right");
+  assert.deepEqual(layouts.v1DefaultPlacement("navy_right"),{x:69,y:58,size:26});
+  assert.deepEqual(layouts.v1DefaultPlacement("white_left"),{x:31,y:58,size:26});
+  assert.match(page,/const effectiveBackDesign=autoMirrorBack\?v1OppositeQrDesign\(frontDesign,backDesign\):backDesign/);
+  assert.match(page,/const selectedDesign=side==="front"\?frontDesign:effectiveBackDesign/);
+  assert.match(page,/const selectedPlacement=side==="front"\?frontPosition:effectiveBackPosition/);
+  assert.match(page,/const design=face==="front"\?frontDesign:effectiveBackDesign/);
+  assert.match(page,/placement:face==="front"\?frontPosition:effectiveBackPosition/);
+  assert.match(page,/Otomatis tukar QR\/NFC di belakang/);
+});
+
+test("built-in right-hand Google Review artwork moves frame and NFC, never flips lettering",()=>{
+  assert.match(exportsSource,/drawReferenceLeftCard\(ctx,size,referenceRight\)/);
+  assert.match(exportsSource,/ctx\.strokeRect\(S\(qrRight\?\.53:\.16\)/);
+  assert.match(exportsSource,/if\(qrRight\)\{ctx\.save\(\);ctx\.translate\(s,0\);ctx\.scale\(-1,1\);\}/);
+  assert.match(exportsSource,/if\(qrRight\)ctx\.restore\(\)/);
+  assert.ok(exportsSource.indexOf('if(qrRight)ctx.restore()') <
+    exportsSource.indexOf('ctx.fillText("Scan QR atau tap NFC"'),
+    "the CTA text must remain unmirrored");
+  assert.match(page,/renderV1Card\(renderSettings\(card,face\)\)/);
+});
+
+test("V1 back uses uploaded artwork of opposite QR variant when its own slot is empty",()=>{
+  assert.match(page,/const useOppositeArtwork=face==="back" && autoMirrorBack/);
+  assert.match(page,/!templates\[design\] && Boolean\(templates\[other\]\)/);
+  assert.match(page,/const templateDataUrl=templates\[design\] \|\| \(useOppositeArtwork\?templates\[other\]:undefined\)/);
+  assert.match(page,/\.\.\.v1DefaultTemplateQrCleanup\(design\),enabled:true/);
+  assert.match(page,/showTemplateNfc:useOppositeArtwork\?true/);
+  assert.match(page,/\.\.\.selectedArtwork/);
+  assert.match(page,/\.\.\.artworkFor\(face,design\)/);
 });

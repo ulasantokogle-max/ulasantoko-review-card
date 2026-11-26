@@ -88,7 +88,7 @@ function drawTemplateTapNfc(ctx:CanvasRenderingContext2D,x:number,y:number,s:num
 /** Google Review print artwork for the two left-QR V1 presets.
  * All geometry is relative to the 10x10 cm card; never changes QR URL or data.
  */
-function drawReferenceLeftCard(ctx:CanvasRenderingContext2D,s:number){
+function drawReferenceLeftCard(ctx:CanvasRenderingContext2D,s:number,qrRight=false){
   const blue="#1262fa",navy="#102d69";
   const S=(v:number)=>v*s;
   const polygon=(points:number[][],color:string)=>{
@@ -123,9 +123,11 @@ function drawReferenceLeftCard(ctx:CanvasRenderingContext2D,s:number){
   }
   // Strict printed QR frame; the QR itself is drawn later, inside this outline.
   ctx.strokeStyle=blue;ctx.lineWidth=S(.010);
-  ctx.strokeRect(S(.16),S(.44),S(.31),S(.28));
+  ctx.strokeRect(S(qrRight?.53:.16),S(.44),S(.31),S(.28));
   ctx.strokeStyle="#9ec0ef";ctx.lineWidth=S(.006);ctx.lineCap="round";
-  ctx.beginPath();ctx.moveTo(S(.51),S(.475));ctx.lineTo(S(.51),S(.69));ctx.stroke();
+  ctx.beginPath();ctx.moveTo(S(qrRight?.49:.51),S(.475));ctx.lineTo(S(qrRight?.49:.51),S(.69));ctx.stroke();
+  // Only mirror the NFC illustration. All words, Google lettering and logo stay readable.
+  if(qrRight){ctx.save();ctx.translate(s,0);ctx.scale(-1,1);}
   // Original reference has a blue circular tap area and a hand touching a phone.
   const cx=S(.685),cy=S(.58);
   ctx.beginPath();ctx.arc(cx,cy,S(.145),0,Math.PI*2);
@@ -149,6 +151,7 @@ function drawReferenceLeftCard(ctx:CanvasRenderingContext2D,s:number){
   ctx.moveTo(S(.736),S(.62));ctx.lineTo(S(.751),S(.64));
   ctx.moveTo(S(.756),S(.615));ctx.lineTo(S(.775),S(.636));
   ctx.stroke();
+  if(qrRight)ctx.restore();
   // Rounded, pale-blue CTA with both lines centered.
   ctx.fillStyle="#d1e8ff";ctx.beginPath();
   ctx.roundRect(S(.092),S(.744),S(.816),S(.119),S(.058));ctx.fill();
@@ -187,6 +190,7 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
   if(!preset)throw new Error("Template V1 tidak valid.");
   const custom=settings.templateDataUrl;
   const referenceLeft=!custom&&(design==="navy_left"||design==="white_left");
+  const referenceRight=!custom&&(design==="navy_right"||design==="white_right");
   if(custom){
     const img=await imageFromDataUrl(custom);
     cropFill(ctx,img,size);
@@ -209,8 +213,8 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
         drawTemplateTapNfc(ctx,size*cleanup.x/100,size*cleanup.y/100,size);
       }
     }
-  } else if(referenceLeft){
-    drawReferenceLeftCard(ctx,size);
+  } else if(referenceLeft||referenceRight){
+    drawReferenceLeftCard(ctx,size,referenceRight);
   } else {
     ctx.fillStyle=preset.dark?"#112e57":"#ffffff";ctx.fillRect(0,0,size,size);
     if(preset.dark) {
@@ -245,7 +249,7 @@ export async function renderV1Card(settings:V1RenderSettings):Promise<HTMLCanvas
   // QR image fully covers any old QR pixels in its own footprint and remains
   // readable by phone cameras.
   // Keep the previous backing untouched for built-in V1 designs.
-  if(!custom&&!referenceLeft){
+  if(!custom&&!referenceLeft&&!referenceRight){
     const whiteBacking=px+size*0.012;
     ctx.fillStyle="#ffffff";
     ctx.fillRect(size*position.x/100-whiteBacking/2,
