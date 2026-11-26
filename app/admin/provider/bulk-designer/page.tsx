@@ -136,6 +136,21 @@ export default function BulkDesignerV1Page() {
       setError("");
     }catch(e){setError(e instanceof Error?e.message:"Template gagal diproses.");}
   }
+  // Preview Back is explicitly the complementary side of the Front card.
+  // Restore automatic mirroring when switching tabs, including when the
+  // previous Back design was manually placed on the same QR side.
+  function openPreviewSide(next:V1Side){
+    if(next==="back"){
+      const mirrored=v1OppositeQrDesign(frontDesign,backDesign);
+      setAutoMirrorBack(true);
+      setBackDesign(mirrored);
+      setBackPosition(templates[mirrored]
+        ?v1UploadedTemplatePlacement(mirrored):v1DefaultPlacement(mirrored));
+    }
+    setPreview("");
+    setPreviewError("");
+    setSide(next);
+  }
   function changeDesign(next:V1DesignKey){
     if(side==="front"){
       setFrontDesign(next);
@@ -422,9 +437,10 @@ export default function BulkDesignerV1Page() {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
             <h2 className="text-xl font-bold text-slate-900">Preview kartu pertama — {side==="front"?"depan":"belakang"}</h2>
             <p className="mt-1 text-sm text-slate-600">Preview langsung dari CSV terverifikasi. PIN aktivasi tidak ditampilkan.</p>
+            <p className="mt-2 text-xs text-blue-800">Tab Belakang otomatis menukar posisi QR dan NFC dibanding Depan. Preview, PNG, ZIP, dan cetak menggunakan desain belakang yang sama.</p>
             <div className="mt-4 flex gap-2">
-              <button aria-pressed={side==="front"} className={"rounded-lg px-4 py-2 text-sm font-semibold "+(side==="front"?"bg-blue-700 text-white":"border bg-white text-slate-700")} onClick={()=>setSide("front")}>Depan</button>
-              <button aria-pressed={side==="back"} className={"rounded-lg px-4 py-2 text-sm font-semibold "+(side==="back"?"bg-blue-700 text-white":"border bg-white text-slate-700")} onClick={()=>setSide("back")}>Belakang</button>
+              <button aria-pressed={side==="front"} className={"rounded-lg px-4 py-2 text-sm font-semibold "+(side==="front"?"bg-blue-700 text-white":"border bg-white text-slate-700")} onClick={()=>openPreviewSide("front")}>Depan</button>
+              <button aria-pressed={side==="back"} className={"rounded-lg px-4 py-2 text-sm font-semibold "+(side==="back"?"bg-blue-700 text-white":"border bg-white text-slate-700")} onClick={()=>openPreviewSide("back")}>Belakang</button>
             </div>
             <div className="mt-4 flex min-h-[360px] items-center justify-center rounded-xl border bg-white p-6">
               {!first?<p className="text-center text-sm text-slate-500">Preview muncul setelah CSV Bulk Create V1 diunggah dan kode kartu berhasil diverifikasi.</p>:
